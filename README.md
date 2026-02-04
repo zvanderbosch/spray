@@ -9,7 +9,7 @@ Spray works in a very simple way:
 
 It can maybe be a bit hard to use for walls with very dense hold layouts since the markers may cover multiple holds, but hey, it gets the job done for me, and maybe it will for you too! Below is a screenshot from my iPhone 14 showing one of the routes I created and saved:
 
-![](data/app_image.jpeg)
+<img src="data/drawing.jpg" alt="Spray Screenshot (iPhone14)" width="200"/>
 
 ## Disclaimer
 
