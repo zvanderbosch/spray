@@ -1,23 +1,24 @@
 # Spray
 
-A React web-based app allowing users to build and save climbing routes on their own custom climbing walls. Simply upload a picture of your climbing wall and start setting! 
+A React web-based app allowing users to build and save climbing routes for their own custom climbing walls.
 
 Spray works in a very simple way:
 
-1) Upload an image of your climbing wall
+1) Upload an image of your climbing wall.
 2) Create routes by clicking/pressing on holds in your image to generate markers.
+3) Save the route, and now it can be viewed again at any time!
 
-It can maybe be a bit hard to use for walls with very dense hold layouts since the markers may cover multiple holds, but hey, it gets the job done for me, and maybe it will for you too! Below is a screenshot from my iPhone 14 showing one of the routes I created and saved:
+It might be hard to use for walls with very dense hold layouts since the markers may cover multiple holds, but hey, it gets the job done for me, and maybe it will for you too! Below is a screenshot from my iPhone 14 showing one of the routes I created and saved:
 
-<img src="data/app_image.jpeg" alt="Spray Screenshot (iPhone14)" width="400"/>
+<img src="data/app_image.jpeg" alt="Spray Screenshot (iPhone14)" width="350"/>
 
 ## Disclaimer
 
-**I am not an App developer!** Most of the code here was developed using AI tools as a fun way to learn how to use said tools and make something useful for myself. Also, I have only run this App on a Linux machine, so I make no promises whether it will work on Mac or Windows devices. Once the app is running, though, and served through a local network, it should be accessible from any kind of device (phone, tablet, computer) connected to the same network using your choice of web browser.
+**I am not an app developer!** Most of the code here was developed using AI tools as a fun way to learn how to use said tools and make something useful for myself. Also, I have only run this app on a Linux machine, so I make no promises whether it will work on Mac or Windows devices. Once the app is running, though, and served through a local network, it should be accessible from any kind of device (phone, tablet, computer) connected to the same network using your choice of web browser.
 
 ## Requirements
 
-You will need to have the following software installed on your machine in order to properly run and serve this App on your local network:
+You will need to have the following software installed on your machine in order to properly run and serve this app on your local network:
 
 * Node.js
     * `sudo apt install nodejs`
@@ -54,7 +55,7 @@ This file will serve as the database storing your library of climbing walls and 
 VITE_API_URL=http://YOUR_COMPUTER_IP:3001
 ```
 
-Replace `YOUR_COMPUTER_IP` with your computer's local IP address. You can find this IP address from the command line using one of the following commands:
+Replace `YOUR_COMPUTER_IP` with your computer's local IP address. You can find this IP address from the terminal using one of the following commands:
 
 ```bash
 ip address | grep inet
@@ -76,7 +77,7 @@ With the above steps complete, simply run the following from your **spray** dire
 npm run dev:all
 ```
 
-Now, any device that is connected to the same network as the device that's running the app will be able to access the app on a browser at the **Network** address printed out on the command line, such as:
+Now, any device that is connected to the same network as the device that's running the app will be able to access the app on a browser at the **Network** address printed out on the terminal, such as:
 
 ```
   VITE v7.3.1  ready in 121 ms
@@ -85,3 +86,5 @@ Now, any device that is connected to the same network as the device that's runni
   ➜  Network: http://YOUR_COMPUTER_IP:3000/
   ➜  press h + enter to show help
 ```
+
+To shut down the app and database server, just type `ctrl+c` in the terminal running the app.
