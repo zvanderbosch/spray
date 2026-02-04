@@ -6,7 +6,10 @@ Spray works in a very simple way:
 
 1) Upload an image of your climbing wall.
 2) Create routes by clicking/pressing on holds in your image to generate markers.
-3) Save the route, and now it can be viewed again at any time!
+3) Save the route, along with route name, setter name, V-grade difficulty, foot rule, and any special notes.
+4) View the route again at any time!
+
+That's it! No user profiles, no ascent logging, just a simple app to maintain a library of routes for your climbing wall.
 
 It might be hard to use for walls with very dense hold layouts since the markers may cover multiple holds, but hey, it gets the job done for me, and maybe it will for you too! Below is a screenshot from my iPhone 14 showing one of the routes I created and saved:
 
