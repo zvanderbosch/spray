@@ -2,6 +2,10 @@
 
 A React web-based app allowing users to build and save climbing routes on their own custom climbing walls. Simply upload a picture of your climbing wall and start setting!
 
+## Disclaimer
+
+I am not an App developer
+
 ## Requirements
 
 You will need to have the following software installed on your machine in order to properly run and serve this App on your local network:
@@ -55,7 +59,11 @@ or
 hostname -I
 ```
 
-If you are still not sure what IP address to use, you can also try running `npm run dev` which will print out the IP address being used to serve the app.
+If you are still not sure what IP address to use, you can also try running `npm run dev` which will print out the IP address being used to serve the app., such as:
+
+```
+  ➜  Network: http://YOUR_COMPUTER_IP:3000/
+```
 
 ## Running the App
 
@@ -67,12 +75,10 @@ npm run dev:all
 
 Now, any device that is connected to the same internet as the device that's running the app will be able to access the app on a browser at the **Network** address printed out on the command line, such as:
 
-```bash
-
+```
   VITE v7.3.1  ready in 121 ms
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: http://YOUR_COMPUTER_IP:3000/
   ➜  press h + enter to show help
-
 ```
