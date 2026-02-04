@@ -1,10 +1,19 @@
 # Spray
 
-A React web-based app allowing users to build and save climbing routes on their own custom climbing walls. Simply upload a picture of your climbing wall and start setting!
+A React web-based app allowing users to build and save climbing routes on their own custom climbing walls. Simply upload a picture of your climbing wall and start setting! 
+
+Spray works in a very simple way:
+
+1) Upload an image of your climbing wall
+2) Create routes by clicking/pressing on holds in your image to generate markers.
+
+It can maybe be a bit hard to use for walls with very dense hold layouts since the markers may cover multiple holds, but hey, it gets the job done for me, and maybe it will for you too! Below is a screenshot from my iPhone 14 showing one of the routes I created and saved:
+
+![](data/app_image.jpeg)
 
 ## Disclaimer
 
-I am not an App developer
+**I am not an App developer!** Most of the code here was developed using AI tools as a fun way to learn how to use said tools and make something useful for myself. Also, I have only run this App on a Linux machine, so I make no promises whether it will work on Mac or Windows devices. Once the app is running, though, and served through a local network, it should be accessible from any kind of device (phone, tablet, computer) connected to the same network using your choice of web browser.
 
 ## Requirements
 
@@ -49,17 +58,11 @@ Replace `YOUR_COMPUTER_IP` with your computer's local IP address. You can find t
 
 ```bash
 ip address | grep inet
-```
-or
-```bash
 ifconfig -a | grep inet
-```
-or
-```bash
 hostname -I
 ```
 
-If you are still not sure what IP address to use, you can also try running `npm run dev` which will print out the IP address being used to serve the app., such as:
+If you are still not sure what IP address to use, you can also try running `npm run dev` which will print out the IP address being used to serve the app:
 
 ```
   ➜  Network: http://YOUR_COMPUTER_IP:3000/
@@ -73,7 +76,7 @@ With the above steps complete, simply run the following from your **spray** dire
 npm run dev:all
 ```
 
-Now, any device that is connected to the same internet as the device that's running the app will be able to access the app on a browser at the **Network** address printed out on the command line, such as:
+Now, any device that is connected to the same network as the device that's running the app will be able to access the app on a browser at the **Network** address printed out on the command line, such as:
 
 ```
   VITE v7.3.1  ready in 121 ms
