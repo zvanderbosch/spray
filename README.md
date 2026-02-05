@@ -1,6 +1,5 @@
 <p align="center">
-  <img src="data/app_logo.png" width="500" height="500">
-  <br> <!-- Optional line break -->
+  <img src="data/app_logo.png" width="400" height="400">
 </p>
 
 #
