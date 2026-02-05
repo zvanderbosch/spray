@@ -1,14 +1,9 @@
-<!-- <div style="float: right;">
-  <img src="data/app_logo.png" alt="Spray Logo" width="500"/>
-</div>
-
-# Intro -->
-
 <p align="center">
   <img src="data/app_logo.png" width="500" height="500">
   <br> <!-- Optional line break -->
-  # Intro
 </p>
+
+# Intro
 
 A React web-based app allowing users to build and save climbing routes for their own custom climbing walls.
 
