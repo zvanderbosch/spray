@@ -3,7 +3,7 @@
   <br> <!-- Optional line break -->
 </p>
 
-# Intro
+#
 
 A React web-based app allowing users to build and save climbing routes for their own custom climbing walls.
 
