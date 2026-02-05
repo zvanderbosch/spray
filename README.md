@@ -1,4 +1,4 @@
-# Spray
+# Spray ![](data/app_logo.png)
 
 A React web-based app allowing users to build and save climbing routes for their own custom climbing walls.
 
@@ -30,7 +30,7 @@ You will need to have the following software installed on your machine in order 
 
 ## Getting Started
 
-If you would like to use this App for your own climbing wall, start by cloning this repository onto your own machine:
+Start by cloning this repository onto your own machine:
 
 ```bash
 git clone https://github.com/zvanderbosch/spray.git

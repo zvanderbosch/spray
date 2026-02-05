@@ -398,7 +398,7 @@ export default function ClimbingRouteDesigner() {
   const getRoutesForWall = (wallId) => routes.filter(r => r.wallId === wallId);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+    <div className="min-h-screen app-background p-4">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-white mb-2">🧗 Spray</h1>
@@ -450,7 +450,16 @@ export default function ClimbingRouteDesigner() {
               <div className="flex-1 p-6 overflow-y-auto">
                 {getRoutesForWall(currentWallId).length === 0 ? <p className="text-slate-400 text-center py-8">No routes yet.</p> : (
                   <div className="space-y-3">
-                    {getRoutesForWall(currentWallId).sort((a, b) => parseInt(a.grade.replace('V', '')) - parseInt(b.grade.replace('V', ''))).map((route) => (
+                    {getRoutesForWall(currentWallId).sort((a, b) => {
+                      const gradeA = parseInt(a.grade.replace('V', ''));
+                      const gradeB = parseInt(b.grade.replace('V', ''));
+                      // Primary sort by grade
+                      if (gradeA !== gradeB) {
+                        return gradeA - gradeB;
+                      }
+                      // Secondary sort by name alphabetically
+                      return a.name.localeCompare(b.name);
+                    }).map((route) => (
                       <div key={route.id} className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600">
                         <div className="flex justify-between items-center gap-3">
                           <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => handleLoadRoute(route.id)}>
