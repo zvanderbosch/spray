@@ -20,7 +20,7 @@ public/uploads/wall*
 .env
 
 # App traffic policy
-policy.yml
+oauth.yml
 
 # Editor directories and files
 .vscode/*
