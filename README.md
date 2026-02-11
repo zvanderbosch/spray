@@ -56,25 +56,7 @@ Create a **db.json** file in the **spray** directory with the following contents
 }
 ```
 
-This file will serve as the database storing your library of climbing walls and associated routes. You will also need to create a **.env** file in the **spray** directory with the following contents:
-
-```javascript
-VITE_API_URL=http://YOUR_COMPUTER_IP:3001
-```
-
-Replace `YOUR_COMPUTER_IP` with your computer's local IP address. You can find this IP address from the terminal using one of the following commands:
-
-```bash
-ip address | grep inet
-ifconfig -a | grep inet
-hostname -I
-```
-
-If you are still not sure what IP address to use, you can also try running `npm run dev` which will print out the IP address being used to serve the app:
-
-```
-  ➜  Network: http://YOUR_COMPUTER_IP:3000/
-```
+This file will serve as the database storing your library of climbing walls and associated routes.
 
 ## Running the App
 
