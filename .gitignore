@@ -19,6 +19,9 @@ public/uploads/wall*
 *.local
 .env
 
+# App traffic policy
+policy.yml
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
