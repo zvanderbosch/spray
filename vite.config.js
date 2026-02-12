@@ -2,7 +2,6 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
@@ -22,6 +21,6 @@ export default defineConfig({
         changeOrigin: true
       }
     },
-    allowedHosts: ['gnashingly-venial-zita.ngrok-free.dev']
+    allowedHosts: ['spray.ngrok.app']
   }
 })
