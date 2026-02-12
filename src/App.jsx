@@ -4,6 +4,16 @@ import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Cam
 // API-based storage
 const API_URL = '/api';
 
+// Read persisted UI state from sessionStorage (returns null if nothing saved yet)
+function getSavedState() {
+  try {
+    const saved = sessionStorage.getItem('sprayAppState');
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+}
+
 const storage = {
   async get(key) {
     const [type, id] = key.split(':');
@@ -70,26 +80,28 @@ if (typeof window !== 'undefined') {
 }
 
 export default function ClimbingRouteDesigner() {
-  const [image, setImage] = useState(null);
-  const [currentWallId, setCurrentWallId] = useState(null);
-  const [currentWallName, setCurrentWallName] = useState('');
+  const saved = getSavedState();
+
+  const [image, setImage] = useState(saved?.image ?? null);
+  const [currentWallId, setCurrentWallId] = useState(saved?.currentWallId ?? null);
+  const [currentWallName, setCurrentWallName] = useState(saved?.currentWallName ?? '');
   const [editingWallName, setEditingWallName] = useState(false);
   const [tempWallName, setTempWallName] = useState('');
-  const [holds, setHolds] = useState([]);
-  const [selectedType, setSelectedType] = useState('start');
+  const [holds, setHolds] = useState(saved?.holds ?? []);
+  const [selectedType, setSelectedType] = useState(saved?.selectedType ?? 'start');
   const [lastTap, setLastTap] = useState({ index: null, time: 0 });
-  const [routeName, setRouteName] = useState('');
-  const [setterName, setSetterName] = useState('');
-  const [routeGrade, setRouteGrade] = useState('V0');
-  const [routeNotes, setRouteNotes] = useState('');
-  const [footRule, setFootRule] = useState('marked');
-  const [currentRouteId, setCurrentRouteId] = useState(null);
+  const [routeName, setRouteName] = useState(saved?.routeName ?? '');
+  const [setterName, setSetterName] = useState(saved?.setterName ?? '');
+  const [routeGrade, setRouteGrade] = useState(saved?.routeGrade ?? 'V0');
+  const [routeNotes, setRouteNotes] = useState(saved?.routeNotes ?? '');
+  const [footRule, setFootRule] = useState(saved?.footRule ?? 'marked');
+  const [currentRouteId, setCurrentRouteId] = useState(saved?.currentRouteId ?? null);
   const [walls, setWalls] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [showWallLibrary, setShowWallLibrary] = useState(false);
   const [showRouteLibrary, setShowRouteLibrary] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [mode, setMode] = useState('choose'); // 'choose', 'view', 'create'
+  const [mode, setMode] = useState(saved?.mode ?? 'choose'); // 'choose', 'view', 'create'
   const imageRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -106,6 +118,33 @@ export default function ClimbingRouteDesigner() {
     loadWalls();
     loadRoutes();
   }, []);
+
+  // Persist UI state to sessionStorage whenever it changes so tab-discards can restore it
+  useEffect(() => {
+    try {
+      // Don't save raw base64 blobs — only save /uploads/ paths (already persisted on server)
+      const imageToSave = image?.startsWith('data:') ? null : image;
+      const stateToSave = {
+        image: imageToSave,
+        currentWallId,
+        currentWallName,
+        holds,
+        selectedType,
+        routeName,
+        setterName,
+        routeGrade,
+        routeNotes,
+        footRule,
+        currentRouteId,
+        mode,
+      };
+      sessionStorage.setItem('sprayAppState', JSON.stringify(stateToSave));
+    } catch (e) {
+      // Silently ignore storage errors (e.g. private browsing quota)
+      console.warn('sessionStorage unavailable:', e);
+    }
+  }, [image, currentWallId, currentWallName, holds, selectedType,
+    routeName, setterName, routeGrade, routeNotes, footRule, currentRouteId, mode]);
 
   const loadWalls = async () => {
     try {
