@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Camera } from 'lucide-react';
 
 // API-based storage
-// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const API_URL = '/api';
 
 const storage = {
