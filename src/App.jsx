@@ -745,7 +745,7 @@ export default function ClimbingRouteDesigner() {
                 </div>
 
                 <div className="relative bg-slate-800 rounded-lg overflow-hidden shadow-2xl">
-                  <img ref={imageRef} src={image} alt="Wall" className="w-full h-auto cursor-crosshair" onClick={handleImageClick} />
+                  <img ref={imageRef} src={image} alt="Wall" className="w-full h-auto cursor-crosshair" style={{ touchAction: 'manipulation' }} onClick={handleImageClick} />
                   {holds.map((hold, i) => {
                     const config = holdTypes[hold.type];
                     return (
