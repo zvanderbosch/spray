@@ -112,6 +112,9 @@ export default function ClimbingRouteDesigner() {
     finish: { color: 'bg-red-400', border: 'border-red-300', label: 'Finish', glow: 'bg-red-400' }
   };
 
+  // Z-index priority for rendering holds (higher number = on top)
+  const holdZIndex = { foot: 1, finish: 2, hand: 3, start: 4 };
+
   const vGrades = Array.from({ length: 18 }, (_, i) => `V${i}`);
 
   useEffect(() => {
@@ -663,7 +666,7 @@ export default function ClimbingRouteDesigner() {
                   {holds.map((hold, i) => {
                     const config = holdTypes[hold.type];
                     return (
-                      <div key={i} className="absolute pointer-events-none" style={{ left: `${hold.x}%`, top: `${hold.y}%` }}>
+                      <div key={i} className="absolute pointer-events-none" style={{ left: `${hold.x}%`, top: `${hold.y}%`, zIndex: holdZIndex[hold.type] || 0 }}>
                         <div className={`absolute w-6 h-6 -ml-3 -mt-3 ${config.glow} rounded-full opacity-20 animate-pulse`}></div>
                         <div className={`absolute w-5 h-5 -ml-2.5 -mt-2.5 ${config.border} border-2 rounded-full bg-transparent`}></div>
                       </div>
@@ -749,7 +752,7 @@ export default function ClimbingRouteDesigner() {
                   {holds.map((hold, i) => {
                     const config = holdTypes[hold.type];
                     return (
-                      <div key={i} className="absolute pointer-events-none" style={{ left: `${hold.x}%`, top: `${hold.y}%` }}>
+                      <div key={i} className="absolute pointer-events-none" style={{ left: `${hold.x}%`, top: `${hold.y}%`, zIndex: holdZIndex[hold.type] || 0 }}>
                         <div className={`absolute w-6 h-6 -ml-3 -mt-3 ${config.glow} rounded-full opacity-20 animate-pulse`}></div>
                         <div className={`absolute w-5 h-5 -ml-2.5 -mt-2.5 ${config.border} border-2 rounded-full bg-transparent`}></div>
                       </div>
