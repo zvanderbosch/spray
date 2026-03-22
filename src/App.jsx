@@ -1161,7 +1161,7 @@ export default function ClimbingRouteDesigner() {
                       <div className="flex justify-between items-center">
                         <div>
                           <h3 className="text-white font-semibold">{ascent.climberName}</h3>
-                          <p className="text-slate-300 text-sm">{new Date(ascent.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                          <p className="text-slate-300 text-sm">{new Date(ascent.date.replace(/-/g, '/')).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
                         <button onClick={() => handleDeleteAscent(ascent.id)} className="text-red-400 hover:bg-red-900 p-2 rounded">
                           <Trash2 size={18} />
