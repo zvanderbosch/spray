@@ -18,7 +18,7 @@ That's it! No user profiles, just a simple app to maintain a library of routes f
 
 It might be hard to use for walls with very dense hold layouts since the markers may cover multiple holds, but hey, it gets the job done for me, and maybe it will for you too! Below is a screenshot from my iPhone 14 showing one of the routes I created and saved:
 
-<img src="data/app_image.jpeg" alt="Spray Screenshot (iPhone14)" width="350"/>
+<img src="data/app_image.jpg" alt="Spray Screenshot (iPhone14)" width="350"/>
 
 ## Disclaimer
 
