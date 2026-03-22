@@ -988,18 +988,6 @@ export default function ClimbingRouteDesigner() {
                   </div>
                 </div>
 
-                <div className="bg-slate-800 rounded-lg p-4 mb-4">
-                  <h3 className="text-white font-semibold mb-3">Hold Legend</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(holdTypes).map(([type, config]) => (
-                      <div key={type} className="flex items-center gap-2">
-                        <div className={`w-4 h-4 rounded-full ${config.color} ${config.border} border-2`}></div>
-                        <span className="text-slate-300 text-sm">{config.label} ({getHoldCount(type)})</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="relative bg-slate-800 rounded-lg overflow-hidden shadow-2xl">
                   <img src={image} alt="Wall" className="w-full h-auto" />
                   {holds.map((hold, i) => {
@@ -1011,6 +999,17 @@ export default function ClimbingRouteDesigner() {
                       </div>
                     );
                   })}
+                </div>
+
+                <div className="bg-slate-800 rounded-lg p-3 mt-4">
+                  <div className="flex justify-around">
+                    {Object.entries(holdTypes).map(([type, config]) => (
+                      <div key={type} className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full ${config.color} ${config.border} border-2 shrink-0`}></div>
+                        <span className="text-slate-300 text-sm">{config.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             ) : (
@@ -1067,7 +1066,7 @@ export default function ClimbingRouteDesigner() {
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(holdTypes).map(([type, config]) => (
                       <button key={type} onClick={() => setSelectedType(type)} className={`py-3 px-4 rounded-lg font-semibold ${selectedType === type ? `${config.color} text-slate-900` : 'bg-slate-700 text-slate-300'}`}>
-                        {config.label} {getHoldCount(type) > 0 && `(${getHoldCount(type)})`}
+                        {config.label}
                       </button>
                     ))}
                   </div>
