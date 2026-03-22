@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Camera } from 'lucide-react';
+import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Camera, Info } from 'lucide-react';
 
 // API-based storage
 const API_URL = '/api';
@@ -340,11 +340,13 @@ export default function ClimbingRouteDesigner() {
   const [lastTap, setLastTap] = useState({ index: null, time: 0 });
   const [routeName, setRouteName] = useState(saved?.routeName ?? '');
   const [setterName, setSetterName] = useState(saved?.setterName ?? '');
-  const [routeGrade, setRouteGrade] = useState(saved?.routeGrade ?? 'V0');
+  const [routeGrade, setRouteGrade] = useState(saved?.routeGrade ?? '');
   const [routeNotes, setRouteNotes] = useState(saved?.routeNotes ?? '');
   const [footRule, setFootRule] = useState(saved?.footRule ?? 'marked');
   const [currentRouteId, setCurrentRouteId] = useState(saved?.currentRouteId ?? null);
   const [ascents, setAscents] = useState([]);
+  const [saveWarning, setSaveWarning] = useState([]);
+  const [showHoldInfo, setShowHoldInfo] = useState(false);
   const [showAscentModal, setShowAscentModal] = useState(false);
   const [showViewAscents, setShowViewAscents] = useState(false);
   const [ascentClimberName, setAscentClimberName] = useState('');
@@ -488,6 +490,7 @@ export default function ClimbingRouteDesigner() {
 
   const handleImageClick = (e) => {
     if (!image) return;
+    setShowHoldInfo(false);
     const rect = imageRef.current.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -533,13 +536,18 @@ export default function ClimbingRouteDesigner() {
 
   const handleClear = () => {
     setHolds([]);
+  };
+
+  const handleNewRoute = () => {
+    setHolds([]);
     setRouteName('');
     setSetterName('');
-    setRouteGrade('V0');
+    setRouteGrade('');
     setRouteNotes('');
     setFootRule('marked');
     setSelectedType('start');
     setCurrentRouteId(null);
+    setSaveWarning([]);
   };
 
   const handleUndo = () => {
@@ -555,7 +563,7 @@ export default function ClimbingRouteDesigner() {
     setHolds([]);
     setRouteName('');
     setSetterName('');
-    setRouteGrade('V0');
+    setRouteGrade('');
     setRouteNotes('');
     setFootRule('marked');
     setCurrentRouteId(null);
@@ -564,6 +572,14 @@ export default function ClimbingRouteDesigner() {
 
   const handleSaveRoute = async () => {
     if (!currentWallId) return;
+    const warnings = [];
+    if (!holds.some(h => h.type === 'start')) warnings.push('At least one start hold is required');
+    if (!holds.some(h => h.type === 'finish')) warnings.push('At least one finish hold is required');
+    if (!routeName.trim()) warnings.push('A route name is required');
+    if (!setterName.trim()) warnings.push('A setter name is required');
+    if (!routeGrade) warnings.push('A grade must be selected');
+    if (warnings.length > 0) { setSaveWarning(warnings); return; }
+    setSaveWarning([]);
     await handleSaveWall();
     const routeData = {
       name: routeName || 'Untitled Route',
@@ -603,7 +619,7 @@ export default function ClimbingRouteDesigner() {
         setHolds([]);
         setRouteName('');
         setSetterName('');
-        setRouteGrade('V0');
+        setRouteGrade('');
         setRouteNotes('');
         setFootRule('marked');
         setCurrentRouteId(null);
@@ -782,10 +798,12 @@ export default function ClimbingRouteDesigner() {
         />
       )}
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-white mb-2">🧗 Spray</h1>
-          <p className="text-slate-300">Design, save, and manage your climbing routes</p>
-        </div>
+        {!image && (
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-white mb-2">🧗 Spray</h1>
+            <p className="text-slate-300">Design, save, and manage your climbing routes</p>
+          </div>
+        )}
 
         {showWallLibrary && (
           <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
@@ -878,35 +896,39 @@ export default function ClimbingRouteDesigner() {
           <>
             {mode === 'choose' ? (
               <>
-                <div className="text-center mb-4">
-                  {editingWallName ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <input
-                        type="text"
-                        value={tempWallName}
-                        onChange={(e) => setTempWallName(e.target.value)}
-                        className="text-2xl font-bold text-white bg-slate-700 px-3 py-1 rounded border border-slate-600 focus:border-blue-400 focus:outline-none text-center"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveWallName();
-                          if (e.key === 'Escape') handleCancelEditWallName();
-                        }}
-                      />
-                      <button onClick={handleSaveWallName} className="text-green-400 hover:text-green-300">
-                        <Check size={24} />
-                      </button>
-                      <button onClick={handleCancelEditWallName} className="text-red-400 hover:text-red-300">
-                        <X size={24} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center gap-2">
-                      <h2 className="text-2xl font-bold text-white">{currentWallName || 'Unnamed Wall'}</h2>
-                      <button onClick={handleEditWallName} className="text-slate-400 hover:text-slate-300">
-                        <Edit2 size={18} />
-                      </button>
-                    </div>
-                  )}
+                <div className="flex items-center mb-4">
+                  <span className="text-2xl w-8 shrink-0">🧗</span>
+                  <div className="flex-1 flex items-center justify-center gap-2">
+                    {editingWallName ? (
+                      <>
+                        <input
+                          type="text"
+                          value={tempWallName}
+                          onChange={(e) => setTempWallName(e.target.value)}
+                          className="text-xl font-bold text-white bg-slate-700 px-3 py-1 rounded border border-slate-600 focus:border-blue-400 focus:outline-none text-center"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveWallName();
+                            if (e.key === 'Escape') handleCancelEditWallName();
+                          }}
+                        />
+                        <button onClick={handleSaveWallName} className="text-green-400 hover:text-green-300">
+                          <Check size={24} />
+                        </button>
+                        <button onClick={handleCancelEditWallName} className="text-red-400 hover:text-red-300">
+                          <X size={24} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="text-xl font-bold text-white">{currentWallName || 'Unnamed Wall'}</h2>
+                        <button onClick={handleEditWallName} className="text-slate-400 hover:text-slate-300">
+                          <Edit2 size={18} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="w-8 shrink-0" />
                 </div>
 
                 <button onClick={handleReset} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 mb-4">
@@ -917,7 +939,7 @@ export default function ClimbingRouteDesigner() {
                   <button onClick={() => setShowRouteLibrary(true)} className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center gap-2">
                     <FolderOpen size={20} /> Choose a Route
                   </button>
-                  <button onClick={() => { setMode('create'); setHolds([]); setRouteName(''); setSetterName(''); setRouteGrade('V0'); setRouteNotes(''); setFootRule('marked'); setCurrentRouteId(null); setSelectedType('start'); }} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center gap-2">
+                  <button onClick={() => { setMode('create'); setHolds([]); setRouteName(''); setSetterName(''); setRouteGrade(''); setRouteNotes(''); setFootRule('marked'); setCurrentRouteId(null); setSelectedType('start'); }} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center gap-2">
                     <Upload size={20} /> Create/Edit a Route
                   </button>
                 </div>
@@ -953,8 +975,12 @@ export default function ClimbingRouteDesigner() {
               </>
             ) : mode === 'view' ? (
               <>
-                <div className="text-center mb-4">
-                  <h2 className="text-2xl font-bold text-white">{currentWallName || 'Unnamed Wall'}</h2>
+                <div className="flex items-center mb-4">
+                  <span className="text-2xl w-8 shrink-0">🧗</span>
+                  <div className="flex-1 text-center">
+                    <h2 className="text-xl font-bold text-white">{currentWallName || 'Unnamed Wall'}</h2>
+                  </div>
+                  <div className="w-8 shrink-0" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
@@ -967,9 +993,8 @@ export default function ClimbingRouteDesigner() {
                 </div>
 
                 <div className="bg-slate-800 rounded-lg p-4 mb-4">
-                  <h3 className="text-white font-semibold mb-3">Route Details</h3>
+                  <h3 className="text-white font-semibold mb-3">{routeName || 'Untitled'}</h3>
                   <div className="space-y-2 text-slate-300">
-                    <div><span className="font-semibold">Name:</span> {routeName || 'Untitled'}</div>
                     {setterName && <div><span className="font-semibold">Setter:</span> {setterName}</div>}
                     <div><span className="font-semibold">Grade:</span> {routeGrade}</div>
                     <div><span className="font-semibold">Foot Rule:</span> {footRule === 'marked' ? 'Marked Holds' : 'Any Feet'}</div>
@@ -1014,34 +1039,44 @@ export default function ClimbingRouteDesigner() {
               </>
             ) : (
               <>
-                <div className="text-center mb-4">
-                  {editingWallName ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <input type="text" value={tempWallName} onChange={(e) => setTempWallName(e.target.value)} className="text-2xl font-bold text-white bg-slate-700 px-3 py-1 rounded text-center" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') handleSaveWallName(); if (e.key === 'Escape') { setEditingWallName(false); setTempWallName(''); } }} />
-                      <button onClick={handleSaveWallName} className="text-green-400"><Check size={24} /></button>
-                      <button onClick={() => { setEditingWallName(false); setTempWallName(''); }} className="text-red-400"><X size={24} /></button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center gap-2">
-                      <h2 className="text-2xl font-bold text-white">{currentWallName || 'Unnamed Wall'}</h2>
-                      <button onClick={handleEditWallName} className="text-slate-400"><Edit2 size={18} /></button>
-                    </div>
-                  )}
+                <div className="flex items-center mb-4">
+                  <span className="text-2xl w-8 shrink-0">🧗</span>
+                  <div className="flex-1 flex items-center justify-center gap-2">
+                    {editingWallName ? (
+                      <>
+                        <input type="text" value={tempWallName} onChange={(e) => setTempWallName(e.target.value)} className="text-xl font-bold text-white bg-slate-700 px-3 py-1 rounded text-center" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') handleSaveWallName(); if (e.key === 'Escape') { setEditingWallName(false); setTempWallName(''); } }} />
+                        <button onClick={handleSaveWallName} className="text-green-400"><Check size={24} /></button>
+                        <button onClick={() => { setEditingWallName(false); setTempWallName(''); }} className="text-red-400"><X size={24} /></button>
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="text-xl font-bold text-white">{currentWallName || 'Unnamed Wall'}</h2>
+                        <button onClick={handleEditWallName} className="text-slate-400"><Edit2 size={18} /></button>
+                      </>
+                    )}
+                  </div>
+                  <div className="w-8 shrink-0" />
                 </div>
 
-                <button onClick={() => { setMode('choose'); setHolds([]); setRouteName(''); setSetterName(''); setRouteGrade('V0'); setRouteNotes(''); setFootRule('marked'); setCurrentRouteId(null); }} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 mb-4">
-                  <ArrowLeft size={18} /> Back to Wall
-                </button>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <button onClick={() => { setMode('choose'); setHolds([]); setRouteName(''); setSetterName(''); setRouteGrade(''); setRouteNotes(''); setFootRule('marked'); setCurrentRouteId(null); setSaveWarning([]); setShowHoldInfo(false); }} className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
+                    <ArrowLeft size={18} /> Back
+                  </button>
+                  <button onClick={() => { handleNewRoute(); setShowHoldInfo(false); }} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
+                    New Route
+                  </button>
+                  <button onClick={() => { setShowRouteLibrary(true); setSaveWarning([]); setShowHoldInfo(false); }} className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center">
+                    Edit Route
+                  </button>
+                </div>
 
                 <div className="bg-slate-800 rounded-lg p-4 mb-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-white font-semibold">Route Details</h3>
-                    {currentRouteId && <span className="text-green-400 text-sm">● Saved</span>}
-                  </div>
+                  {currentRouteId && <div className="flex justify-end mb-3"><span className="text-green-400 text-sm">● Saved</span></div>}
                   <div className="space-y-3">
-                    <input type="text" value={routeName} onChange={(e) => setRouteName(e.target.value)} placeholder="Route Name" className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg" />
-                    <input type="text" value={setterName} onChange={(e) => setSetterName(e.target.value)} placeholder="Setter Name" className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg" />
-                    <select value={routeGrade} onChange={(e) => setRouteGrade(e.target.value)} className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg">
+                    <input type="text" value={routeName} onChange={(e) => { setRouteName(e.target.value); setSaveWarning([]); setShowHoldInfo(false); }} placeholder="Route Name" className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg" />
+                    <input type="text" value={setterName} onChange={(e) => { setSetterName(e.target.value); setSaveWarning([]); setShowHoldInfo(false); }} placeholder="Setter Name" className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg" />
+                    <select value={routeGrade} onChange={(e) => { setRouteGrade(e.target.value); setSaveWarning([]); setShowHoldInfo(false); }} className={`w-full px-3 py-2 bg-slate-700 rounded-lg ${routeGrade ? 'text-white' : 'text-slate-400'}`}>
+                      <option value="" disabled>Grade</option>
                       {vGrades.map(g => <option key={g} value={g}>{g}</option>)}
                     </select>
                     <div>
@@ -1057,32 +1092,34 @@ export default function ClimbingRouteDesigner() {
                         </label>
                       </div>
                     </div>
-                    <textarea value={routeNotes} onChange={(e) => setRouteNotes(e.target.value)} placeholder="Notes" rows="3" className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg resize-none" />
+                    <textarea value={routeNotes} onChange={(e) => { setRouteNotes(e.target.value); setShowHoldInfo(false); }} placeholder="Notes" rows="3" className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg resize-none" />
                   </div>
                 </div>
 
+                {saveWarning.length > 0 && (
+                  <div className="bg-red-900 border border-red-600 rounded-lg p-3 mb-4 relative">
+                    <button onClick={() => setSaveWarning([])} className="absolute top-2 right-2 text-red-400 hover:text-red-200">
+                      <X size={16} />
+                    </button>
+                    <p className="text-red-300 text-sm font-semibold mb-1">Please fix the following before saving:</p>
+                    <ul className="space-y-1">
+                      {saveWarning.map((w, i) => (
+                        <li key={i} className="text-red-300 text-sm flex items-start gap-2">
+                          <span className="mt-0.5">•</span>{w}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="bg-slate-800 rounded-lg p-4 mb-4">
-                  <h3 className="text-white font-semibold mb-3">Select Hold Type</h3>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     {Object.entries(holdTypes).map(([type, config]) => (
-                      <button key={type} onClick={() => setSelectedType(type)} className={`py-3 px-4 rounded-lg font-semibold ${selectedType === type ? `${config.color} text-slate-900` : 'bg-slate-700 text-slate-300'}`}>
+                      <button key={type} onClick={() => { setSelectedType(type); setShowHoldInfo(false); }} className={`py-3 px-2 rounded-lg font-semibold text-sm ${selectedType === type ? `${config.color} text-slate-900` : 'bg-slate-700 text-slate-300'}`}>
                         {config.label}
                       </button>
                     ))}
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  <button onClick={handleUndo} disabled={holds.length === 0} className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
-                    <Undo size={18} /> Undo
-                  </button>
-                  <button onClick={handleClear} className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-lg">Clear ({holds.length})</button>
-                  <button onClick={handleSaveRoute} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
-                    <Save size={18} /> Save
-                  </button>
-                  <button onClick={() => setShowRouteLibrary(true)} className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
-                    <FolderOpen size={18} /> Routes ({getRoutesForWall(currentWallId).length})
-                  </button>
                 </div>
 
                 <div className="relative bg-slate-800 rounded-lg overflow-hidden shadow-2xl">
@@ -1096,10 +1133,27 @@ export default function ClimbingRouteDesigner() {
                       </div>
                     );
                   })}
+                  <button
+                    onClick={() => setShowHoldInfo(v => !v)}
+                    className="absolute top-1.5 right-1.5 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-1 z-10"
+                  >
+                    <Info size={12} />
+                  </button>
+                  {showHoldInfo && (
+                    <div className="absolute top-8 right-1.5 bg-slate-900 bg-opacity-90 text-slate-200 text-xs rounded-lg p-3 shadow-lg z-10 max-w-[180px]">
+                      Tap to add holds<br />Double-tap to delete holds
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-4 bg-slate-800 rounded-lg p-4">
-                  <p className="text-slate-300 text-sm">Tap to add holds • Double-tap holds to delete</p>
+                <div className="grid grid-cols-3 gap-2 mt-4">
+                  <button onClick={() => { handleUndo(); setShowHoldInfo(false); }} disabled={holds.length === 0} className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
+                    <Undo size={18} /> Undo
+                  </button>
+                  <button onClick={() => { handleClear(); setShowHoldInfo(false); }} disabled={holds.length === 0} className="bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg">Clear</button>
+                  <button onClick={() => { handleSaveRoute(); setShowHoldInfo(false); }} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
+                    <Save size={18} /> Save
+                  </button>
                 </div>
               </>
             )}
