@@ -12,8 +12,9 @@ Spray works in a very simple way:
 2) Create routes by clicking/pressing on holds in your image to generate markers.
 3) Save the route, along with route name, setter name, V-grade difficulty, foot rule, and any special notes.
 4) View the route again at any time!
+5) Record ascents if you'd like, logging just your name and ascent date.
 
-That's it! No user profiles, no ascent logging, just a simple app to maintain a library of routes for your climbing wall.
+That's it! No user profiles, just a simple app to maintain a library of routes for your climbing wall.
 
 It might be hard to use for walls with very dense hold layouts since the markers may cover multiple holds, but hey, it gets the job done for me, and maybe it will for you too! Below is a screenshot from my iPhone 14 showing one of the routes I created and saved:
 
@@ -21,7 +22,7 @@ It might be hard to use for walls with very dense hold layouts since the markers
 
 ## Disclaimer
 
-**I am not a professional or aspiring app developer!** Most of the code here was developed using AI tools as a fun way to learn how to use said tools and make something useful for myself. Also, I have only run this app on a Linux machine, so I make no promises whether it will work on Mac or Windows devices. Once the app is running, though, and served through a local network, it should be accessible from any kind of device (phone, tablet, computer) connected to the same network using your choice of web browser. It is also possible to make the app publicly available with tools like [ngrok](https://ngrok.com/) if you so desire.
+**I am not a professional or aspiring app developer!** Most of the code here was developed using AI tools (Claude) as a fun way to learn how to use said tools and make something useful for myself. Also, I have only served this app using a Linux machine, so I make no promises whether it can be served on Mac or Windows devices. Once the app is running, though, and served through a local network, it should be accessible from any kind of device (phone, tablet, computer) connected to the same network using your choice of web browser. It is also possible to make the app publicly available with tools like [ngrok](https://ngrok.com/) if you so desire.
 
 ## Getting Started
 
