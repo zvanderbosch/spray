@@ -79,10 +79,258 @@ if (typeof window !== 'undefined') {
   window.storage = storage;
 }
 
+// ─── Perspective De-warp Editor ───────────────────────────────────────────────
+function WallEditor({ src, onConfirm, onCancel }) {
+  const containerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [imgSize, setImgSize] = useState({ w: 1, h: 1 });
+  // Corners in image-pixel space: TL, TR, BR, BL
+  const [corners, setCorners] = useState(null);
+  const [dragging, setDragging] = useState(null); // index 0-3
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+
+  // Load the image and initialise corners
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      setImgSize({ w, h });
+      setCorners([
+        { x: 0, y: 0 },
+        { x: w, y: 0 },
+        { x: w, y: h },
+        { x: 0, y: h },
+      ]);
+    };
+    img.src = src;
+  }, [src]);
+
+  // Map image-pixel coords → CSS % inside the container
+  const toCss = (pt) => ({
+    left: `${(pt.x / imgSize.w) * 100}%`,
+    top: `${(pt.y / imgSize.h) * 100}%`,
+  });
+
+  const getEventPt = (e) => {
+    const rect = containerRef.current.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: Math.max(0, Math.min(imgSize.w, ((clientX - rect.left) / rect.width) * imgSize.w)),
+      y: Math.max(0, Math.min(imgSize.h, ((clientY - rect.top) / rect.height) * imgSize.h)),
+    };
+  };
+
+  const onPointerDown = (i, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(i);
+  };
+  const onPointerMove = (e) => {
+    if (dragging === null) return;
+    e.preventDefault();
+    const pt = getEventPt(e);
+    setCorners(c => c.map((corner, i) => i === dragging ? pt : corner));
+  };
+  const onPointerUp = () => setDragging(null);
+
+  // ── Homography helper ───────────────────────────────────────────────────────
+  // Solves for the 3×3 homography H mapping src quad → dst rect using DLT.
+  function computeHomography(srcPts, dstPts) {
+    // Build 8×8 system Ah = b (we normalise h[8]=1)
+    const A = [], b = [];
+    for (let i = 0; i < 4; i++) {
+      const [sx, sy] = [srcPts[i].x, srcPts[i].y];
+      const [dx, dy] = [dstPts[i].x, dstPts[i].y];
+      A.push([-sx, -sy, -1, 0, 0, 0, sx * dx, sy * dx]);
+      b.push(-dx);
+      A.push([0, 0, 0, -sx, -sy, -1, sx * dy, sy * dy]);
+      b.push(-dy);
+    }
+    // Gaussian elimination
+    const n = 8;
+    const aug = A.map((row, i) => [...row, b[i]]);
+    for (let col = 0; col < n; col++) {
+      let maxRow = col;
+      for (let row = col + 1; row < n; row++)
+        if (Math.abs(aug[row][col]) > Math.abs(aug[maxRow][col])) maxRow = row;
+      [aug[col], aug[maxRow]] = [aug[maxRow], aug[col]];
+      for (let row = col + 1; row < n; row++) {
+        const f = aug[row][col] / aug[col][col];
+        for (let k = col; k <= n; k++) aug[row][k] -= f * aug[col][k];
+      }
+    }
+    const h = new Array(n).fill(0);
+    for (let i = n - 1; i >= 0; i--) {
+      h[i] = aug[i][n];
+      for (let j = i + 1; j < n; j++) h[i] -= aug[i][j] * h[j];
+      h[i] /= aug[i][i];
+    }
+    return [...h, 1]; // 9 elements, row-major
+  }
+
+  function applyH(H, x, y) {
+    const w = H[6] * x + H[7] * y + H[8];
+    return {
+      x: (H[0] * x + H[1] * y + H[2]) / w,
+      y: (H[3] * x + H[4] * y + H[5]) / w
+    };
+  }
+
+  // ── Warp & return ──────────────────────────────────────────────────────────
+  const doWarp = (forPreview = false) => {
+    const img = new Image();
+    img.onload = () => {
+      // Output size = bounding box of the dragged quad
+      const xs = corners.map(c => c.x), ys = corners.map(c => c.y);
+      const outW = Math.round(Math.max(...xs) - Math.min(...xs));
+      const outH = Math.round(Math.max(...ys) - Math.min(...ys));
+
+      // dst: the clean output rectangle (inverse warp iterates over these pixels)
+      // src: the dragged corners in image-pixel space
+      // H maps each output pixel → source pixel
+      const rect = [
+        { x: 0, y: 0 },
+        { x: outW, y: 0 },
+        { x: outW, y: outH },
+        { x: 0, y: outH },
+      ];
+
+      // H maps rect pixels → corners (inverse warp: for each dst pixel, find src pixel)
+      const H = computeHomography(rect, corners);
+
+      const canvas = canvasRef.current;
+      // Draw source image on a full-size offscreen canvas for pixel sampling
+      const srcCanvas = document.createElement('canvas');
+      srcCanvas.width = imgSize.w;
+      srcCanvas.height = imgSize.h;
+      const srcCtx = srcCanvas.getContext('2d');
+      srcCtx.drawImage(img, 0, 0);
+      const srcData = srcCtx.getImageData(0, 0, imgSize.w, imgSize.h);
+
+      // Set output canvas size and get context
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext('2d');
+
+      // Write warped pixels to destination
+      const dstData = ctx.createImageData(outW, outH);
+      for (let dy = 0; dy < outH; dy++) {
+        for (let dx = 0; dx < outW; dx++) {
+          const sp = applyH(H, dx, dy);
+          const sx = Math.round(sp.x), sy = Math.round(sp.y);
+          if (sx < 0 || sy < 0 || sx >= imgSize.w || sy >= imgSize.h) continue;
+          const si = (sy * imgSize.w + sx) * 4;
+          const di = (dy * outW + dx) * 4;
+          dstData.data[di] = srcData.data[si];
+          dstData.data[di + 1] = srcData.data[si + 1];
+          dstData.data[di + 2] = srcData.data[si + 2];
+          dstData.data[di + 3] = srcData.data[si + 3];
+        }
+      }
+
+      ctx.putImageData(dstData, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      if (forPreview) { setPreviewUrl(dataUrl); setIsPreviewing(true); }
+      else onConfirm(dataUrl);
+    };
+    img.src = src;
+  };
+
+  const cornerLabels = ['TL', 'TR', 'BR', 'BL'];
+  const cornerColors = ['#22c55e', '#3b82f6', '#f97316', '#a855f7'];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-90 z-[200] flex flex-col items-center justify-start overflow-y-auto p-4">
+      <div className="w-full max-w-2xl">
+        <h2 className="text-white text-xl font-bold text-center mb-1">Straighten Wall</h2>
+        <p className="text-slate-400 text-sm text-center mb-4">
+          Drag the four corner handles to match the corners of your climbing wall, then tap <strong className="text-white">Apply</strong>.
+        </p>
+
+        {isPreviewing && previewUrl ? (
+          <div className="space-y-4">
+            <img src={previewUrl} alt="Preview" className="w-full rounded-lg" />
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setIsPreviewing(false)} className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-lg">← Re-adjust</button>
+              <button onClick={() => onConfirm(previewUrl)} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg">Use This ✓</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div
+              ref={containerRef}
+              className="relative select-none touch-none"
+              onMouseMove={onPointerMove}
+              onMouseUp={onPointerUp}
+              onTouchMove={onPointerMove}
+              onTouchEnd={onPointerUp}
+              style={{ cursor: dragging !== null ? 'none' : 'default' }}
+            >
+              <img src={src} alt="Wall" className="w-full h-auto rounded-lg block" draggable={false} />
+
+              {/* Quad outline */}
+              {corners && (
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${imgSize.w} ${imgSize.h}`} preserveAspectRatio="none">
+                  <polygon
+                    points={corners.map(c => `${c.x},${c.y}`).join(' ')}
+                    fill="rgba(59,130,246,0.15)"
+                    stroke="#3b82f6"
+                    strokeWidth={Math.max(2, imgSize.w * 0.004)}
+                    strokeDasharray={`${imgSize.w * 0.015} ${imgSize.w * 0.008}`}
+                  />
+                </svg>
+              )}
+
+              {/* Corner handles */}
+              {corners && corners.map((c, i) => (
+                <div
+                  key={i}
+                  onMouseDown={(e) => onPointerDown(i, e)}
+                  onTouchStart={(e) => onPointerDown(i, e)}
+                  className="absolute flex items-center justify-center rounded-full font-bold text-white text-xs shadow-lg"
+                  style={{
+                    left: toCss(c).left,
+                    top: toCss(c).top,
+                    transform: 'translate(-50%, -50%)',
+                    width: 36, height: 36,
+                    background: cornerColors[i],
+                    border: '3px solid white',
+                    cursor: 'grab',
+                    touchAction: 'none',
+                    zIndex: 10,
+                    boxShadow: dragging === i ? `0 0 0 4px ${cornerColors[i]}88` : '0 2px 8px rgba(0,0,0,0.6)',
+                  }}
+                >
+                  {cornerLabels[i]}
+                </div>
+              ))}
+            </div>
+
+            <canvas ref={canvasRef} className="hidden" />
+
+            <div className="grid grid-cols-3 gap-3 mt-4">
+              <button onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-lg">Skip</button>
+              <button onClick={() => doWarp(true)} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg">Preview</button>
+              <button onClick={() => doWarp(false)} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg">Apply ✓</button>
+            </div>
+            <p className="text-slate-500 text-xs text-center mt-2">Tap <strong className="text-slate-400">Skip</strong> to use the original photo without adjustments.</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function ClimbingRouteDesigner() {
   const saved = getSavedState();
 
   const [image, setImage] = useState(saved?.image ?? null);
+  const [pendingImage, setPendingImage] = useState(null); // awaiting de-warp editor
+  const [pendingImageMeta, setPendingImageMeta] = useState(null);
   const [currentWallId, setCurrentWallId] = useState(saved?.currentWallId ?? null);
   const [currentWallName, setCurrentWallName] = useState(saved?.currentWallName ?? '');
   const [editingWallName, setEditingWallName] = useState(false);
@@ -194,13 +442,35 @@ export default function ClimbingRouteDesigner() {
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        setImage(event.target.result);
-        setCurrentWallName(file.name.replace(/\.[^/.]+$/, ''));
-        setHolds([]);
-        setCurrentWallId(`${Date.now()}`);
+        const newId = `${Date.now()}`;
+        setPendingImageMeta({ name: file.name.replace(/\.[^/.]+$/, ''), id: newId });
+        setPendingImage(event.target.result);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const commitPendingImage = async (dataUrl) => {
+    setImage(dataUrl);
+    setCurrentWallName(pendingImageMeta?.name || 'Unnamed Wall');
+    setHolds([]);
+    setCurrentWallId(pendingImageMeta?.id || `${Date.now()}`);
+    // If replacing an existing wall's photo, persist it immediately
+    if (pendingImageMeta?.isReplacement && pendingImageMeta?.id) {
+      try {
+        const wallData = {
+          image: dataUrl,
+          name: pendingImageMeta.name,
+          createdAt: walls.find(w => w.id === pendingImageMeta.id)?.createdAt || new Date().toISOString()
+        };
+        await window.storage.set(`wall:${pendingImageMeta.id}`, JSON.stringify(wallData));
+        setWalls(walls.map(w => w.id === pendingImageMeta.id ? { ...w, ...wallData } : w));
+      } catch (error) {
+        console.error('Error updating wall image:', error);
+      }
+    }
+    setPendingImage(null);
+    setPendingImageMeta(null);
   };
 
   const handleSaveWall = async () => {
@@ -500,6 +770,17 @@ export default function ClimbingRouteDesigner() {
 
   return (
     <div className="min-h-screen app-background p-4">
+      {/* De-warp editor — shown immediately after an image is selected */}
+      {pendingImage && (
+        <WallEditor
+          src={pendingImage}
+          onConfirm={commitPendingImage}
+          onCancel={() => {
+            // "Skip" — use the raw image as-is
+            commitPendingImage(pendingImage);
+          }}
+        />
+      )}
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-white mb-2">🧗 Spray</h1>
@@ -650,21 +931,9 @@ export default function ClimbingRouteDesigner() {
                     if (file) {
                       const reader = new FileReader();
                       reader.onload = async (event) => {
-                        setImage(event.target.result);
-                        // Save the updated image to the existing wall
-                        if (currentWallId) {
-                          const wallData = {
-                            image: event.target.result,
-                            name: currentWallName,
-                            createdAt: walls.find(w => w.id === currentWallId)?.createdAt || new Date().toISOString()
-                          };
-                          try {
-                            await window.storage.set(`wall:${currentWallId}`, JSON.stringify(wallData));
-                            setWalls(walls.map(w => w.id === currentWallId ? { ...w, ...wallData } : w));
-                          } catch (error) {
-                            console.error('Error updating wall image:', error);
-                          }
-                        }
+                        // Show de-warp editor; on confirm, update the existing wall
+                        setPendingImageMeta({ name: currentWallName, id: currentWallId, isReplacement: true });
+                        setPendingImage(event.target.result);
                       };
                       reader.readAsDataURL(file);
                     }
