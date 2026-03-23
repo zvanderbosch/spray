@@ -8,7 +8,7 @@ A React web-based app allowing users to build and save climbing routes for their
 
 Spray works in a very simple way:
 
-1) Upload an image of your climbing wall.
+1) Upload an image of your climbing wall. Crop and adjust perspective if needed.
 2) Create routes by clicking/pressing on holds in your image to generate markers.
 3) Save the route, along with route name, setter name, V-grade difficulty, foot rule, and any special notes.
 4) View the route again at any time!
