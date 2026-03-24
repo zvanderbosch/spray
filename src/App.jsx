@@ -372,6 +372,17 @@ export default function ClimbingRouteDesigner() {
   useEffect(() => {
     loadWalls();
     loadRoutes();
+    // If a route was restored from sessionStorage, fetch its ascents from the
+    // API — ascents are not persisted in sessionStorage, so they'd otherwise
+    // be empty until the user manually re-selects the route.
+    if (saved?.currentRouteId) {
+      window.storage.get(`route:${saved.currentRouteId}`).then(result => {
+        if (result && result.value) {
+          const routeData = JSON.parse(result.value);
+          setAscents(routeData.ascents || []);
+        }
+      }).catch(() => { });
+    }
   }, []);
 
   // Persist UI state to sessionStorage whenever it changes so tab-discards can restore it
@@ -993,10 +1004,9 @@ export default function ClimbingRouteDesigner() {
                 </div>
 
                 <div className="bg-slate-800 rounded-lg p-4 mb-4">
-                  <h3 className="text-white font-semibold mb-3">{routeName || 'Untitled'}</h3>
+                  <h3 className="text-white text-xl font-bold mb-3">{routeName || 'Untitled'}{routeGrade ? ` - ${routeGrade}` : ''}</h3>
                   <div className="space-y-2 text-slate-300">
                     {setterName && <div><span className="font-semibold">Setter:</span> {setterName}</div>}
-                    <div><span className="font-semibold">Grade:</span> {routeGrade}</div>
                     <div><span className="font-semibold">Foot Rule:</span> {footRule === 'marked' ? 'Marked Holds' : 'Any Feet'}</div>
                     {routeNotes && <div><span className="font-semibold">Notes:</span> {routeNotes}</div>}
                     <div className="flex items-center justify-between">
