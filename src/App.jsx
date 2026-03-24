@@ -1102,7 +1102,7 @@ export default function ClimbingRouteDesigner() {
                         </label>
                       </div>
                     </div>
-                    <textarea value={routeNotes} onChange={(e) => { setRouteNotes(e.target.value); setShowHoldInfo(false); }} placeholder="Notes" rows="3" className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg resize-none" />
+                    <textarea value={routeNotes} onChange={(e) => { setRouteNotes(e.target.value); setShowHoldInfo(false); }} placeholder="Notes" rows="2" className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg resize-none" />
                   </div>
                 </div>
 
@@ -1122,7 +1122,7 @@ export default function ClimbingRouteDesigner() {
                   </div>
                 )}
 
-                <div className="bg-slate-800 rounded-lg p-4 mb-4">
+                <div className="bg-slate-800 rounded-lg p-4 mb-0">
                   <div className="grid grid-cols-4 gap-2">
                     {Object.entries(holdTypes).map(([type, config]) => (
                       <button key={type} onClick={() => { setSelectedType(type); setShowHoldInfo(false); }} className={`py-3 px-2 rounded-lg font-semibold text-sm ${selectedType === type ? `${config.color} text-slate-900` : 'bg-slate-700 text-slate-300'}`}>
@@ -1160,7 +1160,7 @@ export default function ClimbingRouteDesigner() {
                   <button onClick={() => { handleUndo(); setShowHoldInfo(false); }} disabled={holds.length === 0} className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
                     <Undo size={18} /> Undo
                   </button>
-                  <button onClick={() => { handleClear(); setShowHoldInfo(false); }} disabled={holds.length === 0} className="bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg">Clear</button>
+                  <button onClick={() => { handleClear(); setShowHoldInfo(false); }} disabled={holds.length === 0} className="bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2"><X size={18} /> Clear</button>
                   <button onClick={() => { handleSaveRoute(); setShowHoldInfo(false); }} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
                     <Save size={18} /> Save
                   </button>
