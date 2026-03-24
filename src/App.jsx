@@ -359,6 +359,7 @@ export default function ClimbingRouteDesigner() {
   const [mode, setMode] = useState(saved?.mode ?? 'choose'); // 'choose', 'view', 'create'
   const imageRef = useRef(null);
   const fileInputRef = useRef(null);
+  const routeListRef = useRef(null);
 
   const holdTypes = {
     start: { color: 'bg-green-400', border: 'border-green-300', label: 'Start', glow: 'bg-green-400' },
@@ -795,6 +796,13 @@ export default function ClimbingRouteDesigner() {
   const getHoldCount = (type) => holds.filter(h => h.type === type).length;
   const getRoutesForWall = (wallId) => routes.filter(r => r.wallId === wallId);
 
+  // When the route library opens and a route is already selected, scroll it into view
+  useEffect(() => {
+    if (!showRouteLibrary || !currentRouteId || !routeListRef.current) return;
+    const el = routeListRef.current.querySelector(`[data-route-id="${currentRouteId}"]`);
+    if (el) el.scrollIntoView({ block: 'center' });
+  }, [showRouteLibrary]);
+
   return (
     <div className="min-h-screen app-background p-4">
       {/* De-warp editor — shown immediately after an image is selected */}
@@ -858,7 +866,7 @@ export default function ClimbingRouteDesigner() {
                   <button onClick={() => setShowRouteLibrary(false)} className="text-slate-400 hover:text-white text-2xl">×</button>
                 </div>
               </div>
-              <div className="flex-1 p-6 overflow-y-auto">
+              <div ref={routeListRef} className="flex-1 p-6 overflow-y-auto">
                 {getRoutesForWall(currentWallId).length === 0 ? <p className="text-slate-400 text-center py-8">No routes yet.</p> : (
                   <div className="space-y-3">
                     {getRoutesForWall(currentWallId).sort((a, b) => {
@@ -871,7 +879,7 @@ export default function ClimbingRouteDesigner() {
                       // Secondary sort by name alphabetically
                       return a.name.localeCompare(b.name);
                     }).map((route) => (
-                      <div key={route.id} className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600">
+                      <div key={route.id} data-route-id={route.id} className={`rounded-lg p-4 hover:bg-slate-600 ${route.id === currentRouteId ? 'bg-slate-600 ring-2 ring-blue-500' : 'bg-slate-700'}`}>
                         <div className="flex justify-between items-center gap-3">
                           <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => handleLoadRoute(route.id)}>
                             <span className="text-slate-300 font-semibold">{route.grade}</span>
@@ -974,15 +982,15 @@ export default function ClimbingRouteDesigner() {
                   className="hidden"
                 />
 
-                <div className="relative bg-slate-800 rounded-lg overflow-hidden shadow-2xl">
+                <div className="bg-slate-800 rounded-lg overflow-hidden shadow-2xl">
                   <img src={image} alt="Wall" className="w-full h-auto" />
-                  <button
-                    onClick={() => fileInputRef.current.click()}
-                    className="absolute top-4 right-4 bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-lg shadow-lg transition-colors"
-                  >
-                    <Camera size={20} />
-                  </button>
                 </div>
+                <button
+                  onClick={() => fileInputRef.current.click()}
+                  className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Camera size={18} /> Update Wall Image
+                </button>
               </>
             ) : mode === 'view' ? (
               <>
