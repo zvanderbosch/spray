@@ -21,6 +21,6 @@ export default defineConfig({
         changeOrigin: true
       }
     },
-    allowedHosts: ['spray.ngrok.app']
+    allowedHosts: ['spray.ngrok.app', 'gnashingly-venial-zita.ngrok-free.dev']
   }
 })
