@@ -355,6 +355,7 @@ export default function ClimbingRouteDesigner() {
   const [routes, setRoutes] = useState([]);
   const [showWallLibrary, setShowWallLibrary] = useState(false);
   const [showRouteLibrary, setShowRouteLibrary] = useState(false);
+  const [expandedGrades, setExpandedGrades] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [mode, setMode] = useState(saved?.mode ?? 'choose'); // 'choose', 'view', 'create'
   const imageRef = useRef(null);
@@ -796,11 +797,21 @@ export default function ClimbingRouteDesigner() {
   const getHoldCount = (type) => holds.filter(h => h.type === type).length;
   const getRoutesForWall = (wallId) => routes.filter(r => r.wallId === wallId);
 
-  // When the route library opens and a route is already selected, scroll it into view
+  // When the route library opens and a route is already selected, expand its grade and scroll into view
   useEffect(() => {
-    if (!showRouteLibrary || !currentRouteId || !routeListRef.current) return;
-    const el = routeListRef.current.querySelector(`[data-route-id="${currentRouteId}"]`);
-    if (el) el.scrollIntoView({ block: 'center' });
+    if (!showRouteLibrary) return;
+    if (currentRouteId) {
+      const currentRoute = routes.find(r => r.id === currentRouteId);
+      if (currentRoute?.grade) {
+        setExpandedGrades(prev => new Set([...prev, currentRoute.grade]));
+      }
+    }
+    // Scroll after a tick so the grade group has time to expand
+    setTimeout(() => {
+      if (!routeListRef.current || !currentRouteId) return;
+      const el = routeListRef.current.querySelector(`[data-route-id="${currentRouteId}"]`);
+      if (el) el.scrollIntoView({ block: 'center' });
+    }, 50);
   }, [showRouteLibrary]);
 
   return (
@@ -867,32 +878,60 @@ export default function ClimbingRouteDesigner() {
                 </div>
               </div>
               <div ref={routeListRef} className="flex-1 p-6 overflow-y-auto">
-                {getRoutesForWall(currentWallId).length === 0 ? <p className="text-slate-400 text-center py-8">No routes yet.</p> : (
-                  <div className="space-y-3">
-                    {getRoutesForWall(currentWallId).sort((a, b) => {
-                      const gradeA = parseInt(a.grade.replace('V', ''));
-                      const gradeB = parseInt(b.grade.replace('V', ''));
-                      // Primary sort by grade
-                      if (gradeA !== gradeB) {
-                        return gradeA - gradeB;
-                      }
-                      // Secondary sort by name alphabetically
-                      return a.name.localeCompare(b.name);
-                    }).map((route) => (
-                      <div key={route.id} data-route-id={route.id} className={`rounded-lg p-4 hover:bg-slate-600 ${route.id === currentRouteId ? 'bg-slate-600 ring-2 ring-blue-500' : 'bg-slate-700'}`}>
-                        <div className="flex justify-between items-center gap-3">
-                          <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => handleLoadRoute(route.id)}>
-                            <span className="text-slate-300 font-semibold">{route.grade}</span>
-                            <h3 className="text-white font-semibold truncate">{route.name}</h3>
+                {getRoutesForWall(currentWallId).length === 0 ? <p className="text-slate-400 text-center py-8">No routes yet.</p> : (() => {
+                  const wallRoutes = getRoutesForWall(currentWallId);
+                  const gradeMap = {};
+                  wallRoutes.forEach(route => {
+                    if (!gradeMap[route.grade]) gradeMap[route.grade] = [];
+                    gradeMap[route.grade].push(route);
+                  });
+                  const sortedGrades = Object.keys(gradeMap).sort((a, b) => parseInt(a.replace('V', '')) - parseInt(b.replace('V', '')));
+                  sortedGrades.forEach(g => gradeMap[g].sort((a, b) => a.name.localeCompare(b.name)));
+                  return (
+                    <div className="space-y-2">
+                      {sortedGrades.map(grade => {
+                        const isExpanded = expandedGrades.has(grade);
+                        const gradeRoutes = gradeMap[grade];
+                        const hasSelected = gradeRoutes.some(r => r.id === currentRouteId);
+                        return (
+                          <div key={grade}>
+                            <button
+                              onClick={() => setExpandedGrades(prev => {
+                                const next = new Set(prev);
+                                if (next.has(grade)) next.delete(grade); else next.add(grade);
+                                return next;
+                              })}
+                              className="w-full flex items-center justify-between px-4 py-3 rounded-lg font-semibold transition-colors bg-slate-600 hover:bg-slate-500 text-slate-100"
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className={`transition-transform duration-200 text-slate-300 text-xs ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
+                                <span>{grade}</span>
+                                {hasSelected && <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />}
+                              </span>
+                              <span className="text-slate-300 text-sm font-normal">{gradeRoutes.length} {gradeRoutes.length === 1 ? 'Route' : 'Routes'}</span>
+                            </button>
+                            {isExpanded && (
+                              <div className="mt-1 ml-3 pl-2 space-y-1 border-l-2 border-slate-600">
+                                {gradeRoutes.map(route => (
+                                  <div key={route.id} data-route-id={route.id} className={`p-3 hover:bg-slate-700 ${route.id === currentRouteId ? 'bg-slate-700 outline outline-2 outline-blue-500' : 'bg-slate-800'}`}>
+                                    <div className="flex justify-between items-center gap-3">
+                                      <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => handleLoadRoute(route.id)}>
+                                        <h3 className="text-white font-semibold truncate">{route.name}</h3>
+                                      </div>
+                                      <div className="text-red-400 hover:bg-red-900 p-2 cursor-pointer rounded" onClick={() => requestDeleteRoute(route.id)}>
+                                        <Trash2 size={18} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <div className="text-red-400 hover:bg-red-900 p-3 cursor-pointer rounded" onClick={() => requestDeleteRoute(route.id)}>
-                            <Trash2 size={20} />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
