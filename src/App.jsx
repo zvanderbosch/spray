@@ -797,21 +797,23 @@ export default function ClimbingRouteDesigner() {
   const getHoldCount = (type) => holds.filter(h => h.type === type).length;
   const getRoutesForWall = (wallId) => routes.filter(r => r.wallId === wallId);
 
-  // When the route library opens and a route is already selected, expand its grade and scroll into view
+  // On close: collapse everything. On open: show only the active route's grade (or nothing).
   useEffect(() => {
-    if (!showRouteLibrary) return;
+    if (!showRouteLibrary) {
+      setExpandedGrades(new Set());
+      return;
+    }
     if (currentRouteId) {
       const currentRoute = routes.find(r => r.id === currentRouteId);
-      if (currentRoute?.grade) {
-        setExpandedGrades(prev => new Set([...prev, currentRoute.grade]));
-      }
+      setExpandedGrades(currentRoute?.grade ? new Set([currentRoute.grade]) : new Set());
+      setTimeout(() => {
+        if (!routeListRef.current || !currentRouteId) return;
+        const el = routeListRef.current.querySelector(`[data-route-id="${currentRouteId}"]`);
+        if (el) el.scrollIntoView({ block: 'center' });
+      }, 50);
+    } else {
+      setExpandedGrades(new Set());
     }
-    // Scroll after a tick so the grade group has time to expand
-    setTimeout(() => {
-      if (!routeListRef.current || !currentRouteId) return;
-      const el = routeListRef.current.querySelector(`[data-route-id="${currentRouteId}"]`);
-      if (el) el.scrollIntoView({ block: 'center' });
-    }, 50);
   }, [showRouteLibrary]);
 
   return (
