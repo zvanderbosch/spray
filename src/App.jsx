@@ -32,17 +32,19 @@ const storage = {
     const [type, id] = key.split(':');
     const data = JSON.parse(value);
     try {
-      // Check if exists first
-      const existing = await fetch(`${API_URL}/${type}s/${id}`);
-      const method = existing.ok ? 'PUT' : 'POST';
-      const url = existing.ok ? `${API_URL}/${type}s/${id}` : `${API_URL}/${type}s`;
-
-      const response = await fetch(url, {
-        method,
+      // Try PUT first (upsert); fall back to POST only on 404/405
+      const response = await fetch(`${API_URL}/${type}s/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, ...data })
       });
-
+      if (!response.ok && (response.status === 404 || response.status === 405)) {
+        await fetch(`${API_URL}/${type}s`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, ...data })
+        });
+      }
       return { key, value };
     } catch (error) {
       console.error('Set error:', error);
@@ -372,8 +374,7 @@ export default function ClimbingRouteDesigner() {
   const vGrades = Array.from({ length: 18 }, (_, i) => `V${i}`);
 
   useEffect(() => {
-    loadWalls();
-    loadRoutes();
+    Promise.all([loadWalls(), loadRoutes()]);
     // If a route was restored from sessionStorage, fetch its ascents from the
     // API — ascents are not persisted in sessionStorage, so they'd otherwise
     // be empty until the user manually re-selects the route.
@@ -418,14 +419,13 @@ export default function ClimbingRouteDesigner() {
     try {
       const result = await window.storage.list('wall:');
       if (result && result.keys) {
-        const wallData = [];
-        for (const key of result.keys) {
-          const data = await window.storage.get(key);
-          if (data && data.value) {
+        const results = await Promise.all(result.keys.map(key => window.storage.get(key)));
+        const wallData = results
+          .filter(data => data && data.value)
+          .map(data => {
             const wall = JSON.parse(data.value);
-            wallData.push({ id: key.replace('wall:', ''), ...wall });
-          }
-        }
+            return { id: data.key.replace('wall:', ''), ...wall };
+          });
         setWalls(wallData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
       }
     } catch (error) {
@@ -437,14 +437,13 @@ export default function ClimbingRouteDesigner() {
     try {
       const result = await window.storage.list('route:');
       if (result && result.keys) {
-        const routeData = [];
-        for (const key of result.keys) {
-          const data = await window.storage.get(key);
-          if (data && data.value) {
+        const results = await Promise.all(result.keys.map(key => window.storage.get(key)));
+        const routeData = results
+          .filter(data => data && data.value)
+          .map(data => {
             const route = JSON.parse(data.value);
-            routeData.push({ id: key.replace('route:', ''), ...route });
-          }
-        }
+            return { id: data.key.replace('route:', ''), ...route };
+          });
         setRoutes(routeData.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
       }
     } catch (error) {
