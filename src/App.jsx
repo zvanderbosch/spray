@@ -361,14 +361,129 @@ export default function ClimbingRouteDesigner() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [mode, setMode] = useState(saved?.mode ?? 'choose'); // 'choose', 'view', 'create'
   const imageRef = useRef(null);
+  const viewImageRef = useRef(null);
+  const editCanvasRef = useRef(null);
+  const viewCanvasRef = useRef(null);
+  const offRef = useRef(null);
+  const fillOffRef = useRef(null);
   const fileInputRef = useRef(null);
   const routeListRef = useRef(null);
 
+  // Canvas-based hold rendering
+  const holdColors = {
+    start: { stroke: '#86efac', fill: 'rgba(74,222,128,0.20)' },
+    hand: { stroke: '#38bdf8', fill: 'rgba(56,189,248,0.20)' },
+    foot: { stroke: '#d8b4fe', fill: 'rgba(192,132,252,0.20)' },
+    finish: { stroke: '#ef4444', fill: 'rgba(239,68,68,0.20)' },
+  };
+  const zOrder = ['foot', 'hand', 'finish', 'start'];
+
+  function drawHoldsOnCanvas(canvas, imgEl, holdsArr) {
+    if (!canvas || !imgEl) return;
+    const rect = imgEl.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = rect.width;
+    const h = rect.height;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+    const radius = 10;
+    const strokeWidth = 2;
+
+    // Reuse persistent offscreen canvases — resize only, no allocation
+    if (!offRef.current) offRef.current = document.createElement('canvas');
+    if (!fillOffRef.current) fillOffRef.current = document.createElement('canvas');
+    const off = offRef.current;
+    const fillOff = fillOffRef.current;
+    off.width = w * dpr;
+    off.height = h * dpr;
+    fillOff.width = w * dpr;
+    fillOff.height = h * dpr;
+    const octx = off.getContext('2d');
+    const fctx = fillOff.getContext('2d');
+
+    const byType = {};
+    zOrder.forEach(t => { byType[t] = []; });
+    holdsArr.forEach(hold => { if (byType[hold.type]) byType[hold.type].push(hold); });
+
+    zOrder.forEach(type => {
+      const typeHolds = byType[type];
+      if (typeHolds.length === 0) return;
+      const colors = holdColors[type];
+
+      // Clear and reset transform on reused canvases
+      octx.setTransform(1, 0, 0, 1, 0, 0);
+      octx.clearRect(0, 0, off.width, off.height);
+      octx.scale(dpr, dpr);
+
+      fctx.setTransform(1, 0, 0, 1, 0, 0);
+      fctx.clearRect(0, 0, fillOff.width, fillOff.height);
+      fctx.scale(dpr, dpr);
+
+      const pts = typeHolds.map(hold => ({
+        cx: (hold.x / 100) * w,
+        cy: (hold.y / 100) * h,
+      }));
+
+      // Step 1: solid discs at outer radius to establish union shape
+      octx.globalCompositeOperation = 'source-over';
+      octx.fillStyle = '#ffffff';
+      pts.forEach(({ cx, cy }) => {
+        octx.beginPath();
+        octx.arc(cx, cy, radius + strokeWidth / 2, 0, Math.PI * 2);
+        octx.fill();
+      });
+
+      // Step 2: punch out interiors — overlapping interiors protect each other
+      octx.globalCompositeOperation = 'destination-out';
+      octx.fillStyle = '#ffffff';
+      pts.forEach(({ cx, cy }) => {
+        octx.beginPath();
+        octx.arc(cx, cy, radius - strokeWidth / 2, 0, Math.PI * 2);
+        octx.fill();
+      });
+
+      // Step 3: colorize the remaining ring pixels
+      octx.globalCompositeOperation = 'source-in';
+      octx.fillStyle = colors.stroke;
+      octx.fillRect(0, 0, w, h);
+
+      // Step 4: build union interior on the reused fill canvas, flood with a
+      // single fillRect so alpha never compounds across overlapping circles
+      fctx.globalCompositeOperation = 'source-over';
+      fctx.fillStyle = '#ffffff';
+      pts.forEach(({ cx, cy }) => {
+        fctx.beginPath();
+        fctx.arc(cx, cy, radius - strokeWidth / 2, 0, Math.PI * 2);
+        fctx.fill();
+      });
+      fctx.globalCompositeOperation = 'source-in';
+      fctx.fillStyle = colors.fill;
+      fctx.fillRect(0, 0, w, h);
+
+      // Composite fill behind the ring, then stamp onto main canvas
+      octx.globalCompositeOperation = 'destination-over';
+      octx.drawImage(fillOff, 0, 0, w, h);
+      ctx.drawImage(off, 0, 0, w, h);
+    });
+  }
+
+  useEffect(() => {
+    drawHoldsOnCanvas(editCanvasRef.current, imageRef.current, holds);
+  }, [holds, image]);
+
+  useEffect(() => {
+    drawHoldsOnCanvas(viewCanvasRef.current, viewImageRef.current, holds);
+  }, [holds, image]);
+
   const holdTypes = {
-    start: { color: 'bg-green-400', border: 'border-green-300', label: 'Start', glow: 'bg-green-400' },
-    hand: { color: 'bg-blue-400', border: 'border-blue-300', label: 'Hand', glow: 'bg-blue-400' },
-    foot: { color: 'bg-purple-400', border: 'border-purple-300', label: 'Foot', glow: 'bg-purple-400' },
-    finish: { color: 'bg-red-400', border: 'border-red-300', label: 'Finish', glow: 'bg-red-400' }
+    start: { color: 'bg-green-400', border: 'border-green-300', label: 'Start', glow: 'bg-green-400', fill: 'rgba(74,222,128,0.20)', zIndex: 4 },
+    hand: { color: 'bg-blue-400', border: 'border-blue-300', label: 'Hand', glow: 'bg-blue-400', fill: 'rgba(96,165,250,0.20)', zIndex: 2 },
+    foot: { color: 'bg-purple-400', border: 'border-purple-300', label: 'Foot', glow: 'bg-purple-400', fill: 'rgba(192,132,252,0.20)', zIndex: 1 },
+    finish: { color: 'bg-red-400', border: 'border-red-300', label: 'Finish', glow: 'bg-red-400', fill: 'rgba(248,113,113,0.20)', zIndex: 3 }
   };
 
   const vGrades = Array.from({ length: 18 }, (_, i) => `V${i}`);
@@ -1072,23 +1187,15 @@ export default function ClimbingRouteDesigner() {
                 </div>
 
                 <div className="relative bg-slate-800 rounded-lg overflow-hidden shadow-2xl">
-                  <img src={image} alt="Wall" className="w-full h-auto" />
-                  {holds.map((hold, i) => {
-                    const config = holdTypes[hold.type];
-                    return (
-                      <div key={i} className="absolute pointer-events-none" style={{ left: `${hold.x}%`, top: `${hold.y}%` }}>
-                        <div className={`absolute w-6 h-6 -ml-3 -mt-3 ${config.glow} rounded-full opacity-20 animate-pulse`}></div>
-                        <div className={`absolute w-5 h-5 -ml-2.5 -mt-2.5 ${config.border} border-2 rounded-full bg-transparent`}></div>
-                      </div>
-                    );
-                  })}
+                  <img ref={viewImageRef} src={image} alt="Wall" className="w-full h-auto" onLoad={() => drawHoldsOnCanvas(viewCanvasRef.current, viewImageRef.current, holds)} />
+                  <canvas ref={viewCanvasRef} className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }} />
                 </div>
 
                 <div className="bg-slate-800 rounded-lg p-3 mt-4">
                   <div className="flex justify-around">
                     {Object.entries(holdTypes).map(([type, config]) => (
                       <div key={type} className="flex items-center gap-2">
-                        <div className={`w-4 h-4 rounded-full ${config.color} ${config.border} border-2 shrink-0`}></div>
+                        <div className="w-4 h-4 rounded-full border-2 shrink-0" style={{ borderColor: holdColors[type].stroke, backgroundColor: holdColors[type].fill }}></div>
                         <span className="text-slate-300 text-sm">{config.label}</span>
                       </div>
                     ))}
@@ -1181,16 +1288,8 @@ export default function ClimbingRouteDesigner() {
                 </div>
 
                 <div className="relative bg-slate-800 rounded-lg overflow-hidden shadow-2xl">
-                  <img ref={imageRef} src={image} alt="Wall" className="w-full h-auto cursor-crosshair" style={{ touchAction: 'manipulation' }} onClick={handleImageClick} />
-                  {holds.map((hold, i) => {
-                    const config = holdTypes[hold.type];
-                    return (
-                      <div key={i} className="absolute pointer-events-none" style={{ left: `${hold.x}%`, top: `${hold.y}%` }}>
-                        <div className={`absolute w-6 h-6 -ml-3 -mt-3 ${config.glow} rounded-full opacity-20 animate-pulse`}></div>
-                        <div className={`absolute w-5 h-5 -ml-2.5 -mt-2.5 ${config.border} border-2 rounded-full bg-transparent`}></div>
-                      </div>
-                    );
-                  })}
+                  <img ref={imageRef} src={image} alt="Wall" className="w-full h-auto cursor-crosshair" style={{ touchAction: 'manipulation' }} onClick={handleImageClick} onLoad={() => drawHoldsOnCanvas(editCanvasRef.current, imageRef.current, holds)} />
+                  <canvas ref={editCanvasRef} className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }} />
                   <button
                     onClick={() => setShowHoldInfo(v => !v)}
                     className="absolute top-1.5 right-1.5 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-1 z-10"
