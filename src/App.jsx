@@ -360,6 +360,9 @@ export default function ClimbingRouteDesigner() {
   const [expandedGrades, setExpandedGrades] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [mode, setMode] = useState(saved?.mode ?? 'choose'); // 'choose', 'view', 'create'
+  const [showCreateWall, setShowCreateWall] = useState(false);
+  const [createWallName, setCreateWallName] = useState('');
+  const [createWallPreview, setCreateWallPreview] = useState(null); // base64 preview before de-warp
   const imageRef = useRef(null);
   const viewImageRef = useRef(null);
   const editCanvasRef = useRef(null);
@@ -571,32 +574,46 @@ export default function ClimbingRouteDesigner() {
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const newId = `${Date.now()}`;
-        setPendingImageMeta({ name: file.name.replace(/\.[^/.]+$/, ''), id: newId });
-        setPendingImage(event.target.result);
+        if (showCreateWall) {
+          // In create-wall flow: just store preview; user confirms via checkmark
+          setCreateWallPreview(event.target.result);
+        } else {
+          const newId = `${Date.now()}`;
+          const name = createWallName.trim() || file.name.replace(/\.[^/.]+$/, '');
+          setPendingImageMeta({ name, id: newId });
+          setPendingImage(event.target.result);
+          setShowCreateWall(false);
+          setCreateWallName('');
+        }
       };
       reader.readAsDataURL(file);
     }
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
   };
 
   const commitPendingImage = async (dataUrl) => {
+    const wallName = pendingImageMeta?.name || 'Unnamed Wall';
+    const wallId = pendingImageMeta?.id || `${Date.now()}`;
     setImage(dataUrl);
-    setCurrentWallName(pendingImageMeta?.name || 'Unnamed Wall');
+    setCurrentWallName(wallName);
     setHolds([]);
-    setCurrentWallId(pendingImageMeta?.id || `${Date.now()}`);
-    // If replacing an existing wall's photo, persist it immediately
-    if (pendingImageMeta?.isReplacement && pendingImageMeta?.id) {
-      try {
-        const wallData = {
-          image: dataUrl,
-          name: pendingImageMeta.name,
-          createdAt: walls.find(w => w.id === pendingImageMeta.id)?.createdAt || new Date().toISOString()
-        };
-        await window.storage.set(`wall:${pendingImageMeta.id}`, JSON.stringify(wallData));
-        setWalls(walls.map(w => w.id === pendingImageMeta.id ? { ...w, ...wallData } : w));
-      } catch (error) {
-        console.error('Error updating wall image:', error);
+    setCurrentWallId(wallId);
+    try {
+      const existingWall = walls.find(w => w.id === wallId);
+      const wallData = {
+        image: dataUrl,
+        name: wallName,
+        createdAt: existingWall?.createdAt || new Date().toISOString()
+      };
+      await window.storage.set(`wall:${wallId}`, JSON.stringify(wallData));
+      if (existingWall) {
+        setWalls(walls.map(w => w.id === wallId ? { ...w, ...wallData } : w));
+      } else {
+        setWalls(prev => [{ id: wallId, ...wallData }, ...prev]);
       }
+    } catch (error) {
+      console.error('Error saving wall:', error);
     }
     setPendingImage(null);
     setPendingImageMeta(null);
@@ -679,6 +696,16 @@ export default function ClimbingRouteDesigner() {
 
   const handleUndo = () => {
     if (holds.length > 0) setHolds(holds.slice(0, -1));
+  };
+
+  const handleConfirmCreateWall = () => {
+    if (!createWallName.trim() || !createWallPreview) return;
+    const newId = `${Date.now()}`;
+    setPendingImageMeta({ name: createWallName.trim(), id: newId });
+    setPendingImage(createWallPreview);
+    setShowCreateWall(false);
+    setCreateWallName('');
+    setCreateWallPreview(null);
   };
 
   const handleReset = () => {
@@ -947,7 +974,6 @@ export default function ClimbingRouteDesigner() {
         {!image && (
           <div className="text-center mb-6">
             <h1 className="text-3xl font-bold text-white mb-2">🧗 Spray</h1>
-            <p className="text-slate-300">Design, save, and manage your climbing routes</p>
           </div>
         )}
 
@@ -961,7 +987,7 @@ export default function ClimbingRouteDesigner() {
                 </div>
               </div>
               <div className="flex-1 p-6 overflow-y-auto">
-                {walls.length === 0 ? <p className="text-slate-400 text-center py-8">No walls yet.</p> : (
+                {walls.length === 0 ? <p className="text-slate-400 text-center py-8">No walls exist yet. Create your first wall using "Create New Wall".</p> : (
                   <div className="space-y-3">
                     {walls.map((wall) => (
                       <div key={wall.id} className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600">
@@ -1056,15 +1082,57 @@ export default function ClimbingRouteDesigner() {
         {!image ? (
           <div className="bg-slate-800 rounded-lg p-8 text-center space-y-4">
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-            {walls.length > 0 && (
-              <button onClick={() => setShowWallLibrary(true)} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-4 px-6 rounded-lg flex items-center justify-center gap-2">
-                <Upload size={20} /> Load Wall ({walls.length})
-              </button>
+            {showCreateWall ? (
+              <div className="space-y-4 text-left">
+                <div className="flex items-center gap-2 mb-2">
+                  <button onClick={() => { setShowCreateWall(false); setCreateWallName(''); setCreateWallPreview(null); }} className="text-slate-400 hover:text-white">
+                    <ArrowLeft size={20} />
+                  </button>
+                  <h2 className="text-xl font-bold text-white">Create New Wall</h2>
+                </div>
+                <input
+                  type="text"
+                  value={createWallName}
+                  onChange={(e) => setCreateWallName(e.target.value)}
+                  placeholder="Wall Name..."
+                  className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-400 focus:outline-none"
+                  autoFocus
+                />
+                <button
+                  onClick={() => fileInputRef.current.click()}
+                  className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 border border-dashed border-slate-500"
+                >
+                  <Upload size={18} /> {createWallPreview ? 'Change Photo' : 'Select Wall Photo'}
+                </button>
+                {createWallPreview && (
+                  <img src={createWallPreview} alt="Wall preview" className="w-full rounded-lg object-cover max-h-48" />
+                )}
+                <button
+                  onClick={handleConfirmCreateWall}
+                  disabled={!createWallName.trim() || !createWallPreview}
+                  className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-lg font-semibold transition-colors
+                    disabled:bg-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed
+                    bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Check size={20} /> Create Wall
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => setShowWallLibrary(true)}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-4 px-6 rounded-lg flex items-center justify-center gap-2"
+                >
+                  Choose a Wall
+                </button>
+                <button
+                  onClick={() => setShowCreateWall(true)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg flex items-center justify-center gap-2"
+                >
+                  Create New Wall
+                </button>
+              </>
             )}
-            {walls.length > 0 && <div className="text-slate-400">or</div>}
-            <button onClick={() => fileInputRef.current.click()} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg flex items-center justify-center gap-2">
-              <Upload size={20} /> Upload Wall Photo
-            </button>
           </div>
         ) : (
           <>
