@@ -374,10 +374,10 @@ export default function ClimbingRouteDesigner() {
 
   // Canvas-based hold rendering
   const holdColors = {
-    start: { stroke: '#86efac', fill: 'rgba(74,222,128,0.20)' },
-    hand: { stroke: '#38bdf8', fill: 'rgba(56,189,248,0.20)' },
-    foot: { stroke: '#d8b4fe', fill: 'rgba(192,132,252,0.20)' },
-    finish: { stroke: '#ef4444', fill: 'rgba(239,68,68,0.20)' },
+    start: { stroke: '#86efac', fill: 'rgba(74,222,128,0.0)' },
+    hand: { stroke: '#38bdf8', fill: 'rgba(56,189,248,0.0)' },
+    foot: { stroke: '#d8b4fe', fill: 'rgba(192,132,252,0.0)' },
+    finish: { stroke: '#ef4444', fill: 'rgba(239,68,68,0.0)' },
   };
   const zOrder = ['foot', 'hand', 'finish', 'start'];
 
