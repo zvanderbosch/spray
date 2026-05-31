@@ -1421,7 +1421,7 @@ export default function ClimbingRouteDesigner() {
                     <div className="flex items-center justify-between">
                       <div><span className="font-semibold">Ascents:</span> {ascents.length}</div>
                       <div className="flex gap-2">
-                        <button onClick={() => { setAscentDate(new Date().toISOString().split('T')[0]); setShowAscentModal(true); }} className="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold py-1 px-2 rounded">
+                        <button onClick={() => { const d = new Date(); const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; setAscentDate(localDate); setShowAscentModal(true); }} className="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold py-1 px-2 rounded">
                           Add
                         </button>
                         <button onClick={() => setShowViewAscents(true)} className="bg-slate-600 hover:bg-slate-500 text-white text-xs font-semibold py-1 px-2 rounded">
@@ -1572,39 +1572,50 @@ export default function ClimbingRouteDesigner() {
         />
       )}
 
-      {showAscentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 z-[100] flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-lg max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-white mb-4">Log Ascent</h3>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-slate-300 text-sm mb-2">Climber Name</label>
-                <input
-                  type="text"
-                  value={ascentClimberName}
-                  onChange={(e) => setAscentClimberName(e.target.value)}
-                  placeholder="Enter name"
-                  className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg"
-                  autoFocus
-                />
+      {showAscentModal && (() => {
+        const knownNames = [...new Set(
+          routes.flatMap(r => (r.ascents || []).map(a => a.climberName).filter(Boolean))
+        )].sort((a, b) => a.localeCompare(b));
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-75 z-[100] flex items-center justify-center p-4">
+            <div className="bg-slate-800 rounded-lg max-w-md w-full p-6">
+              <h3 className="text-xl font-bold text-white mb-4">Log Ascent</h3>
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-slate-300 text-sm mb-2">Climber Name</label>
+                  <input
+                    type="text"
+                    list="known-climbers"
+                    value={ascentClimberName}
+                    onChange={(e) => setAscentClimberName(e.target.value)}
+                    placeholder="Enter or select name"
+                    className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg"
+                    autoFocus
+                  />
+                  {knownNames.length > 0 && (
+                    <datalist id="known-climbers">
+                      {knownNames.map(n => <option key={n} value={n} />)}
+                    </datalist>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-slate-300 text-sm mb-2">Date</label>
+                  <input
+                    type="date"
+                    value={ascentDate}
+                    onChange={(e) => setAscentDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-slate-300 text-sm mb-2">Date</label>
-                <input
-                  type="date"
-                  value={ascentDate}
-                  onChange={(e) => setAscentDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg"
-                />
+              <div className="flex gap-3">
+                <button onClick={() => { setShowAscentModal(false); setAscentClimberName(''); setAscentDate(''); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg">Cancel</button>
+                <button onClick={handleAddAscent} disabled={!ascentClimberName.trim() || !ascentDate} className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg">Save</button>
               </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => { setShowAscentModal(false); setAscentClimberName(''); setAscentDate(''); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg">Cancel</button>
-              <button onClick={handleAddAscent} disabled={!ascentClimberName.trim() || !ascentDate} className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg">Save</button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {showViewAscents && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-[100] flex items-center justify-center p-4">
