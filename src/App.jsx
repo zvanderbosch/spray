@@ -341,21 +341,21 @@ function AscentNameInput({ value, onChange, knownNames }) {
   }, [open]);
 
   return (
-    <div ref={containerRef} className="relative">
-      <div className="flex gap-2">
+    <div ref={containerRef} className="relative w-full">
+      <div className="flex gap-2 w-full">
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Enter name"
-          className="flex-1 px-3 py-2 bg-slate-700 text-white rounded-lg"
+          className="flex-1 min-w-0 px-3 py-2 bg-slate-700 text-white rounded-lg"
           autoFocus
         />
         {knownNames.length > 0 && (
           <button
             type="button"
             onClick={() => setOpen(o => !o)}
-            className={`px-3 py-2 rounded-lg text-white transition-colors ${open ? 'bg-teal-600' : 'bg-slate-600 hover:bg-slate-500'}`}
+            className={`shrink-0 px-3 py-2 rounded-lg text-white transition-colors ${open ? 'bg-teal-600' : 'bg-slate-600 hover:bg-slate-500'}`}
             title="Show previous climbers"
           >
             <ChevronDown size={16} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -1634,7 +1634,7 @@ export default function ClimbingRouteDesigner() {
         )].sort((a, b) => a.localeCompare(b));
         return (
           <div className="fixed inset-0 bg-black bg-opacity-75 z-[100] flex items-center justify-center p-4">
-            <div className="bg-slate-800 rounded-lg max-w-md w-full p-6">
+            <div className="bg-slate-800 rounded-lg max-w-md w-full p-6 box-border">
               <h3 className="text-xl font-bold text-white mb-4">Log Ascent</h3>
               <div className="space-y-4 mb-6">
                 <div>
@@ -1651,7 +1651,7 @@ export default function ClimbingRouteDesigner() {
                     type="date"
                     value={ascentDate}
                     onChange={(e) => setAscentDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg"
+                    className="w-full max-w-full box-border px-3 py-2 bg-slate-700 text-white rounded-lg"
                   />
                 </div>
               </div>
