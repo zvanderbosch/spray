@@ -327,6 +327,62 @@ function WallEditor({ src, onConfirm, onCancel }) {
 }
 // ──────────────────────────────────────────────────────────────────────────────
 
+// ─── Ascent Name Input with manual dropdown ───────────────────────────────────
+function AscentNameInput({ value, onChange, knownNames }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Enter name"
+          className="flex-1 px-3 py-2 bg-slate-700 text-white rounded-lg"
+          autoFocus
+        />
+        {knownNames.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setOpen(o => !o)}
+            className={`px-3 py-2 rounded-lg text-white transition-colors ${open ? 'bg-teal-600' : 'bg-slate-600 hover:bg-slate-500'}`}
+            title="Show previous climbers"
+          >
+            <ChevronDown size={16} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full bg-slate-700 rounded-lg shadow-xl overflow-hidden">
+          <div className="overflow-y-auto" style={{ maxHeight: '160px' }}>
+            {knownNames.map(name => (
+              <button
+                key={name}
+                type="button"
+                className="w-full text-left px-4 py-2 text-white hover:bg-slate-600 transition-colors text-sm"
+                onClick={() => { onChange(name); setOpen(false); }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 // ─── Wall Stats Modal ─────────────────────────────────────────────────────────
 function WallStats({ wallName, routes, onClose }) {
   const [expandedUser, setExpandedUser] = useState(null);
@@ -1583,20 +1639,11 @@ export default function ClimbingRouteDesigner() {
               <div className="space-y-4 mb-6">
                 <div>
                   <label className="block text-slate-300 text-sm mb-2">Climber Name</label>
-                  <input
-                    type="text"
-                    list="known-climbers"
+                  <AscentNameInput
                     value={ascentClimberName}
-                    onChange={(e) => setAscentClimberName(e.target.value)}
-                    placeholder="Enter or select name"
-                    className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg"
-                    autoFocus
+                    onChange={setAscentClimberName}
+                    knownNames={knownNames}
                   />
-                  {knownNames.length > 0 && (
-                    <datalist id="known-climbers">
-                      {knownNames.map(n => <option key={n} value={n} />)}
-                    </datalist>
-                  )}
                 </div>
                 <div>
                   <label className="block text-slate-300 text-sm mb-2">Date</label>
