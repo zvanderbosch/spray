@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Camera, Info } from 'lucide-react';
+import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Camera, Info, BarChart2, ChevronDown, ChevronUp } from 'lucide-react';
 
 // API-based storage
 const API_URL = '/api';
@@ -327,6 +327,158 @@ function WallEditor({ src, onConfirm, onCancel }) {
 }
 // ──────────────────────────────────────────────────────────────────────────────
 
+// ─── Wall Stats Modal ─────────────────────────────────────────────────────────
+function WallStats({ wallName, routes, onClose }) {
+  const [expandedUser, setExpandedUser] = useState(null);
+
+  const vGrades = Array.from({ length: 18 }, (_, i) => `V${i}`);
+
+  // Grade distribution of routes
+  const gradeCount = {};
+  routes.forEach(r => { if (r.grade) gradeCount[r.grade] = (gradeCount[r.grade] || 0) + 1; });
+  const presentGrades = vGrades.filter(g => gradeCount[g]);
+  const maxRouteCount = Math.max(1, ...presentGrades.map(g => gradeCount[g] || 0));
+
+  // Grade colour band (same logic as hold colours, simplified)
+  const gradeColour = (grade) => {
+    const n = parseInt(grade.replace('V', ''));
+    if (n <= 2) return '#4ade80';   // green
+    if (n <= 4) return '#facc15';   // yellow
+    if (n <= 6) return '#fb923c';   // orange
+    if (n <= 8) return '#f87171';   // red
+    return '#c084fc';               // purple
+  };
+
+  // Collect all ascents tagged with their route grade
+  const allAscents = routes.flatMap(r =>
+    (r.ascents || []).map(a => ({ ...a, grade: r.grade }))
+  );
+
+  // Per-user stats
+  const userMap = {};
+  allAscents.forEach(a => {
+    const name = a.climberName || 'Unknown';
+    if (!userMap[name]) userMap[name] = { total: 0, grades: {} };
+    userMap[name].total += 1;
+    if (a.grade) userMap[name].grades[a.grade] = (userMap[name].grades[a.grade] || 0) + 1;
+  });
+  const users = Object.entries(userMap).sort((a, b) => b[1].total - a[1].total);
+
+  const totalAscents = allAscents.length;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-80 z-[100] flex items-center justify-center p-4">
+      <div className="bg-slate-800 rounded-xl w-full max-w-lg flex flex-col" style={{ maxHeight: '90vh' }}>
+        {/* Header */}
+        <div className="p-5 border-b border-slate-700 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <BarChart2 size={20} className="text-teal-400" />
+            <h2 className="text-xl font-bold text-white">{wallName || 'Wall'} Stats</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+
+          {/* ── Route Grade Distribution ── */}
+          <section>
+            <h3 className="text-slate-300 font-semibold text-sm uppercase tracking-wide mb-3">
+              Route Grade Distribution — {routes.length} {routes.length === 1 ? 'route' : 'routes'}
+            </h3>
+            {presentGrades.length === 0 ? (
+              <p className="text-slate-500 text-sm">No routes set yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {presentGrades.map(grade => {
+                  const count = gradeCount[grade] || 0;
+                  const pct = Math.round((count / maxRouteCount) * 100);
+                  return (
+                    <div key={grade} className="flex items-center gap-3">
+                      <span className="text-slate-300 text-sm font-mono w-8 shrink-0">{grade}</span>
+                      <div className="flex-1 bg-slate-700 rounded-full h-5 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{ width: `${pct}%`, backgroundColor: gradeColour(grade) }}
+                        />
+                      </div>
+                      <span className="text-slate-400 text-sm w-6 text-right shrink-0">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* ── Ascent Summary ── */}
+          <section>
+            <h3 className="text-slate-300 font-semibold text-sm uppercase tracking-wide mb-3">
+              Climber Stats — {totalAscents} total {totalAscents === 1 ? 'ascent' : 'ascents'}
+            </h3>
+            {users.length === 0 ? (
+              <p className="text-slate-500 text-sm">No ascents logged yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {users.map(([name, data]) => {
+                  const isOpen = expandedUser === name;
+                  const userGrades = vGrades.filter(g => data.grades[g]);
+                  const maxUserCount = Math.max(1, ...userGrades.map(g => data.grades[g] || 0));
+                  return (
+                    <div key={name} className="bg-slate-700 rounded-lg overflow-hidden">
+                      <button
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-600 transition-colors"
+                        onClick={() => setExpandedUser(isOpen ? null : name)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center text-teal-200 font-bold text-sm shrink-0">
+                            {name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-white font-semibold truncate max-w-[160px]">{name}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-slate-300 text-sm">{data.total} {data.total === 1 ? 'ascent' : 'ascents'}</span>
+                          {isOpen ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                        </div>
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 pb-4 pt-1 border-t border-slate-600">
+                          <p className="text-slate-400 text-xs uppercase tracking-wide mb-2 mt-2">Grade breakdown</p>
+                          {userGrades.length === 0 ? (
+                            <p className="text-slate-500 text-sm">No graded ascents.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {userGrades.map(grade => {
+                                const count = data.grades[grade] || 0;
+                                const pct = Math.round((count / maxUserCount) * 100);
+                                return (
+                                  <div key={grade} className="flex items-center gap-3">
+                                    <span className="text-slate-300 text-xs font-mono w-8 shrink-0">{grade}</span>
+                                    <div className="flex-1 bg-slate-600 rounded-full h-4 overflow-hidden">
+                                      <div
+                                        className="h-full rounded-full"
+                                        style={{ width: `${pct}%`, backgroundColor: gradeColour(grade) }}
+                                      />
+                                    </div>
+                                    <span className="text-slate-400 text-xs w-4 text-right shrink-0">{count}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function ClimbingRouteDesigner() {
   const saved = getSavedState();
 
@@ -359,6 +511,7 @@ export default function ClimbingRouteDesigner() {
   const [showRouteLibrary, setShowRouteLibrary] = useState(false);
   const [expandedGrades, setExpandedGrades] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [showWallStats, setShowWallStats] = useState(false);
   const [mode, setMode] = useState(saved?.mode ?? 'choose'); // 'choose', 'view', 'create'
   const [showCreateWall, setShowCreateWall] = useState(false);
   const [createWallName, setCreateWallName] = useState('');
@@ -1177,12 +1330,15 @@ export default function ClimbingRouteDesigner() {
                   <ArrowLeft size={18} /> Change Wall
                 </button>
 
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <button onClick={() => setShowRouteLibrary(true)} className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center gap-2">
-                    <FolderOpen size={20} /> Choose a Route
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <button onClick={() => setShowRouteLibrary(true)} className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center">
+                    Choose a Route
                   </button>
-                  <button onClick={() => { setMode('create'); setHolds([]); setRouteName(''); setSetterName(''); setRouteGrade(''); setRouteNotes(''); setFootRule('marked'); setCurrentRouteId(null); setSelectedType('start'); }} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center gap-2">
-                    <Upload size={20} /> Create/Edit a Route
+                  <button onClick={() => { setMode('create'); setHolds([]); setRouteName(''); setSetterName(''); setRouteGrade(''); setRouteNotes(''); setFootRule('marked'); setCurrentRouteId(null); setSelectedType('start'); }} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center">
+                    Create/Edit a Route
+                  </button>
+                  <button onClick={() => setShowWallStats(true)} className="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center">
+                    Wall Stats
                   </button>
                 </div>
 
@@ -1385,6 +1541,14 @@ export default function ClimbingRouteDesigner() {
           </>
         )}
       </div>
+
+      {showWallStats && (
+        <WallStats
+          wallName={currentWallName}
+          routes={routes.filter(r => r.wallId === currentWallId)}
+          onClose={() => setShowWallStats(false)}
+        />
+      )}
 
       {showAscentModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-[100] flex items-center justify-center p-4">
