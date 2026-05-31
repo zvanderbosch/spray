@@ -330,6 +330,7 @@ function WallEditor({ src, onConfirm, onCancel }) {
 // ─── Wall Stats Modal ─────────────────────────────────────────────────────────
 function WallStats({ wallName, routes, onClose }) {
   const [expandedUser, setExpandedUser] = useState(null);
+  const [ascentMode, setAscentMode] = useState('total'); // 'total' | 'unique'
 
   const vGrades = Array.from({ length: 18 }, (_, i) => `V${i}`);
 
@@ -339,32 +340,38 @@ function WallStats({ wallName, routes, onClose }) {
   const presentGrades = vGrades.filter(g => gradeCount[g]);
   const maxRouteCount = Math.max(1, ...presentGrades.map(g => gradeCount[g] || 0));
 
-  // Grade colour band (same logic as hold colours, simplified)
+  // Grade colour band
   const gradeColour = (grade) => {
     const n = parseInt(grade.replace('V', ''));
-    if (n <= 2) return '#4ade80';   // green
-    if (n <= 4) return '#facc15';   // yellow
-    if (n <= 6) return '#fb923c';   // orange
-    if (n <= 8) return '#f87171';   // red
-    return '#c084fc';               // purple
+    if (n <= 2) return '#4ade80';
+    if (n <= 4) return '#facc15';
+    if (n <= 6) return '#fb923c';
+    if (n <= 8) return '#f87171';
+    return '#c084fc';
   };
 
-  // Collect all ascents tagged with their route grade
-  const allAscents = routes.flatMap(r =>
-    (r.ascents || []).map(a => ({ ...a, grade: r.grade }))
-  );
-
-  // Per-user stats
+  // Build per-user stats — both total and unique
   const userMap = {};
-  allAscents.forEach(a => {
-    const name = a.climberName || 'Unknown';
-    if (!userMap[name]) userMap[name] = { total: 0, grades: {} };
-    userMap[name].total += 1;
-    if (a.grade) userMap[name].grades[a.grade] = (userMap[name].grades[a.grade] || 0) + 1;
+  routes.forEach(r => {
+    (r.ascents || []).forEach(a => {
+      const name = a.climberName || 'Unknown';
+      if (!userMap[name]) userMap[name] = { totalCount: 0, uniqueRouteIds: new Set(), totalGrades: {}, uniqueGrades: {} };
+      userMap[name].totalCount += 1;
+      if (r.grade) userMap[name].totalGrades[r.grade] = (userMap[name].totalGrades[r.grade] || 0) + 1;
+      if (!userMap[name].uniqueRouteIds.has(r.id)) {
+        userMap[name].uniqueRouteIds.add(r.id);
+        if (r.grade) userMap[name].uniqueGrades[r.grade] = (userMap[name].uniqueGrades[r.grade] || 0) + 1;
+      }
+    });
   });
-  const users = Object.entries(userMap).sort((a, b) => b[1].total - a[1].total);
 
-  const totalAscents = allAscents.length;
+  const users = Object.entries(userMap).sort((a, b) => {
+    const countA = ascentMode === 'total' ? a[1].totalCount : a[1].uniqueRouteIds.size;
+    const countB = ascentMode === 'total' ? b[1].totalCount : b[1].uniqueRouteIds.size;
+    return countB - countA;
+  });
+
+  const grandTotal = users.reduce((sum, [, d]) => sum + (ascentMode === 'total' ? d.totalCount : d.uniqueRouteIds.size), 0);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 z-[100] flex items-center justify-center p-4">
@@ -396,10 +403,7 @@ function WallStats({ wallName, routes, onClose }) {
                     <div key={grade} className="flex items-center gap-3">
                       <span className="text-slate-300 text-sm font-mono w-8 shrink-0">{grade}</span>
                       <div className="flex-1 bg-slate-700 rounded-full h-5 overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{ width: `${pct}%`, backgroundColor: gradeColour(grade) }}
-                        />
+                        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, backgroundColor: gradeColour(grade) }} />
                       </div>
                       <span className="text-slate-400 text-sm w-6 text-right shrink-0">{count}</span>
                     </div>
@@ -409,19 +413,39 @@ function WallStats({ wallName, routes, onClose }) {
             )}
           </section>
 
-          {/* ── Ascent Summary ── */}
+          {/* ── Climber Stats ── */}
           <section>
-            <h3 className="text-slate-300 font-semibold text-sm uppercase tracking-wide mb-3">
-              Climber Stats — {totalAscents} total {totalAscents === 1 ? 'ascent' : 'ascents'}
-            </h3>
+            {/* Section header + toggle */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-slate-300 font-semibold text-sm uppercase tracking-wide">
+                Climber Stats — {grandTotal} {ascentMode === 'total' ? (grandTotal === 1 ? 'ascent' : 'ascents') : (grandTotal === 1 ? 'unique route' : 'unique routes')}
+              </h3>
+              <div className="flex bg-slate-700 rounded-lg p-0.5 text-xs font-semibold shrink-0">
+                <button
+                  onClick={() => setAscentMode('total')}
+                  className={`px-3 py-1 rounded-md transition-colors ${ascentMode === 'total' ? 'bg-teal-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  Total
+                </button>
+                <button
+                  onClick={() => setAscentMode('unique')}
+                  className={`px-3 py-1 rounded-md transition-colors ${ascentMode === 'unique' ? 'bg-teal-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  Unique
+                </button>
+              </div>
+            </div>
+
             {users.length === 0 ? (
               <p className="text-slate-500 text-sm">No ascents logged yet.</p>
             ) : (
               <div className="space-y-2">
                 {users.map(([name, data]) => {
                   const isOpen = expandedUser === name;
-                  const userGrades = vGrades.filter(g => data.grades[g]);
-                  const maxUserCount = Math.max(1, ...userGrades.map(g => data.grades[g] || 0));
+                  const count = ascentMode === 'total' ? data.totalCount : data.uniqueRouteIds.size;
+                  const grades = ascentMode === 'total' ? data.totalGrades : data.uniqueGrades;
+                  const userGrades = vGrades.filter(g => grades[g]);
+                  const maxUserCount = Math.max(1, ...userGrades.map(g => grades[g] || 0));
                   return (
                     <div key={name} className="bg-slate-700 rounded-lg overflow-hidden">
                       <button
@@ -435,7 +459,9 @@ function WallStats({ wallName, routes, onClose }) {
                           <span className="text-white font-semibold truncate max-w-[160px]">{name}</span>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-slate-300 text-sm">{data.total} {data.total === 1 ? 'ascent' : 'ascents'}</span>
+                          <span className="text-slate-300 text-sm">
+                            {count} {ascentMode === 'total' ? (count === 1 ? 'ascent' : 'ascents') : (count === 1 ? 'route' : 'routes')}
+                          </span>
                           {isOpen ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
                         </div>
                       </button>
@@ -447,18 +473,15 @@ function WallStats({ wallName, routes, onClose }) {
                           ) : (
                             <div className="space-y-2">
                               {userGrades.map(grade => {
-                                const count = data.grades[grade] || 0;
-                                const pct = Math.round((count / maxUserCount) * 100);
+                                const gradeCount = grades[grade] || 0;
+                                const pct = Math.round((gradeCount / maxUserCount) * 100);
                                 return (
                                   <div key={grade} className="flex items-center gap-3">
                                     <span className="text-slate-300 text-xs font-mono w-8 shrink-0">{grade}</span>
                                     <div className="flex-1 bg-slate-600 rounded-full h-4 overflow-hidden">
-                                      <div
-                                        className="h-full rounded-full"
-                                        style={{ width: `${pct}%`, backgroundColor: gradeColour(grade) }}
-                                      />
+                                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: gradeColour(grade) }} />
                                     </div>
-                                    <span className="text-slate-400 text-xs w-4 text-right shrink-0">{count}</span>
+                                    <span className="text-slate-400 text-xs w-4 text-right shrink-0">{gradeCount}</span>
                                   </div>
                                 );
                               })}
