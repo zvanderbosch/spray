@@ -418,7 +418,7 @@ function WallStats({ wallName, routes, onClose }) {
             {/* Section header + toggle */}
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-slate-300 font-semibold text-sm uppercase tracking-wide">
-                Climber Stats — {grandTotal} {ascentMode === 'total' ? (grandTotal === 1 ? 'ascent' : 'ascents') : (grandTotal === 1 ? 'unique route' : 'unique routes')}
+                Climber Stats
               </h3>
               <div className="flex bg-slate-700 rounded-lg p-0.5 text-xs font-semibold shrink-0">
                 <button
@@ -466,8 +466,7 @@ function WallStats({ wallName, routes, onClose }) {
                         </div>
                       </button>
                       {isOpen && (
-                        <div className="px-4 pb-4 pt-1 border-t border-slate-600">
-                          <p className="text-slate-400 text-xs uppercase tracking-wide mb-2 mt-2">Grade breakdown</p>
+                        <div className="px-4 pb-4 pt-3 border-t border-slate-600">
                           {userGrades.length === 0 ? (
                             <p className="text-slate-500 text-sm">No graded ascents.</p>
                           ) : (
