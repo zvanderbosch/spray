@@ -1634,7 +1634,7 @@ export default function ClimbingRouteDesigner() {
         )].sort((a, b) => a.localeCompare(b));
         return (
           <div className="fixed inset-0 bg-black bg-opacity-75 z-[100] flex items-center justify-center p-4">
-            <div className="bg-slate-800 rounded-lg max-w-md w-full p-6 box-border">
+            <div className="bg-slate-800 rounded-lg max-w-md w-full p-6 overflow-hidden">
               <h3 className="text-xl font-bold text-white mb-4">Log Ascent</h3>
               <div className="space-y-4 mb-6">
                 <div>
@@ -1647,12 +1647,15 @@ export default function ClimbingRouteDesigner() {
                 </div>
                 <div>
                   <label className="block text-slate-300 text-sm mb-2">Date</label>
-                  <input
-                    type="date"
-                    value={ascentDate}
-                    onChange={(e) => setAscentDate(e.target.value)}
-                    className="w-full max-w-full box-border px-3 py-2 bg-slate-700 text-white rounded-lg"
-                  />
+                  <div className="overflow-hidden rounded-lg">
+                    <input
+                      type="date"
+                      value={ascentDate}
+                      onChange={(e) => setAscentDate(e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                      className="px-3 py-2 bg-slate-700 text-white rounded-lg"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="flex gap-3">
