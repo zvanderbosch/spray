@@ -1629,9 +1629,10 @@ export default function ClimbingRouteDesigner() {
       )}
 
       {showAscentModal && (() => {
-        const knownNames = [...new Set(
-          routes.flatMap(r => (r.ascents || []).map(a => a.climberName).filter(Boolean))
-        )].sort((a, b) => a.localeCompare(b));
+        const allAscents = routes.flatMap(r => (r.ascents || []).map(a => a.climberName).filter(Boolean));
+        const ascentCounts = {};
+        allAscents.forEach(n => { ascentCounts[n] = (ascentCounts[n] || 0) + 1; });
+        const knownNames = [...new Set(allAscents)].sort((a, b) => (ascentCounts[b] - ascentCounts[a]) || a.localeCompare(b));
         return (
           <div className="fixed inset-0 bg-black bg-opacity-75 z-[100] flex items-center justify-center p-4">
             <div className="bg-slate-800 rounded-lg max-w-md w-full p-6 overflow-hidden">
