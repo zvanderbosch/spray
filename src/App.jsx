@@ -1089,6 +1089,14 @@ export default function ClimbingRouteDesigner() {
     setConfirmDelete({ type: 'route', id: routeId, message: 'Delete this route?' });
   };
 
+  const requestDeleteAscent = (ascentId, climberName) => {
+    setConfirmDelete({
+      type: 'ascent',
+      id: ascentId,
+      message: climberName ? `Delete this ascent by ${climberName}?` : 'Delete this ascent?'
+    });
+  };
+
   const confirmDeleteAction = async () => {
     if (!confirmDelete) return;
     try {
@@ -1099,10 +1107,12 @@ export default function ClimbingRouteDesigner() {
         setWalls(walls.filter(w => w.id !== confirmDelete.id));
         setRoutes(routes.filter(r => r.wallId !== confirmDelete.id));
         if (currentWallId === confirmDelete.id) handleReset();
-      } else {
+      } else if (confirmDelete.type === 'route') {
         await window.storage.delete(`route:${confirmDelete.id}`);
         setRoutes(routes.filter(r => r.id !== confirmDelete.id));
         if (currentRouteId === confirmDelete.id) handleClear();
+      } else if (confirmDelete.type === 'ascent') {
+        await handleDeleteAscent(confirmDelete.id);
       }
       setConfirmDelete(null);
     } catch (error) {
@@ -1689,7 +1699,7 @@ export default function ClimbingRouteDesigner() {
                           <h3 className="text-white font-semibold">{ascent.climberName}</h3>
                           <p className="text-slate-300 text-sm">{new Date(ascent.date.replace(/-/g, '/')).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
-                        <button onClick={() => handleDeleteAscent(ascent.id)} className="text-red-400 hover:bg-red-900 p-2 rounded">
+                        <button onClick={() => requestDeleteAscent(ascent.id, ascent.climberName)} className="text-red-400 hover:bg-red-900 p-2 rounded">
                           <Trash2 size={18} />
                         </button>
                       </div>
