@@ -4,6 +4,20 @@ import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Cam
 // API-based storage
 const API_URL = '/api';
 
+// Shared PIN that unlocks delete actions app-wide. Change this to whatever
+// code you want to share with trusted climbers/setters at your gym.
+const ADMIN_PIN = '2477';
+
+// Admin login persists only for the current browser tab session (clears on tab close),
+// similar in spirit to sessionStorage-based UI state below.
+function getSavedAdminState() {
+  try {
+    return sessionStorage.getItem('sprayAppIsAdmin') === 'true';
+  } catch {
+    return false;
+  }
+}
+
 // Read persisted UI state from sessionStorage (returns null if nothing saved yet)
 function getSavedState() {
   try {
@@ -594,6 +608,10 @@ export default function ClimbingRouteDesigner() {
   const [showCreateWall, setShowCreateWall] = useState(false);
   const [createWallName, setCreateWallName] = useState('');
   const [createWallPreview, setCreateWallPreview] = useState(null); // base64 preview before de-warp
+  const [isAdmin, setIsAdmin] = useState(() => getSavedAdminState());
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [adminError, setAdminError] = useState('');
   const imageRef = useRef(null);
   const viewImageRef = useRef(null);
   const editCanvasRef = useRef(null);
@@ -1080,21 +1098,42 @@ export default function ClimbingRouteDesigner() {
   };
 
   const requestDeleteWall = (wallId) => {
+    if (!isAdmin) return;
     const wallRoutes = routes.filter(r => r.wallId === wallId);
     const message = wallRoutes.length > 0 ? `Delete wall and ${wallRoutes.length} routes?` : 'Delete this wall?';
     setConfirmDelete({ type: 'wall', id: wallId, message });
   };
 
   const requestDeleteRoute = (routeId) => {
+    if (!isAdmin) return;
     setConfirmDelete({ type: 'route', id: routeId, message: 'Delete this route?' });
   };
 
   const requestDeleteAscent = (ascentId, climberName) => {
+    if (!isAdmin) return;
     setConfirmDelete({
       type: 'ascent',
       id: ascentId,
       message: climberName ? `Delete this ascent by ${climberName}?` : 'Delete this ascent?'
     });
+  };
+
+  const handleAdminLogin = () => {
+    if (adminPinInput === ADMIN_PIN) {
+      setIsAdmin(true);
+      try { sessionStorage.setItem('sprayAppIsAdmin', 'true'); } catch { }
+      setShowAdminLogin(false);
+      setAdminPinInput('');
+      setAdminError('');
+    } else {
+      setAdminError('Incorrect PIN');
+      setAdminPinInput('');
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdmin(false);
+    try { sessionStorage.removeItem('sprayAppIsAdmin'); } catch { }
   };
 
   const confirmDeleteAction = async () => {
@@ -1198,8 +1237,49 @@ export default function ClimbingRouteDesigner() {
     }
   }, [showRouteLibrary]);
 
+  // Reusable admin login/logout control, inlined into each header row
+  const adminControl = isAdmin ? (
+    <button
+      onClick={handleAdminLogout}
+      className="bg-green-700 hover:bg-green-800 text-white text-xs font-semibold py-1.5 px-2.5 rounded-lg flex items-center gap-1 whitespace-nowrap"
+    >
+      <Check size={12} /> Admin
+    </button>
+  ) : (
+    <button
+      onClick={() => { setShowAdminLogin(true); setAdminError(''); setAdminPinInput(''); }}
+      className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold py-1.5 px-2.5 rounded-lg whitespace-nowrap"
+    >
+      Admin
+    </button>
+  );
+
   return (
     <div className="min-h-screen app-background p-4">
+      {showAdminLogin && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-[120] flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-lg max-w-sm w-full p-6">
+            <h3 className="text-xl font-bold text-white mb-4">Admin Login</h3>
+            <p className="text-slate-300 text-sm mb-4">Enter the shared PIN to enable delete actions.</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoFocus
+              value={adminPinInput}
+              onChange={(e) => { setAdminPinInput(e.target.value); setAdminError(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAdminLogin(); if (e.key === 'Escape') setShowAdminLogin(false); }}
+              placeholder="PIN"
+              className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg mb-2"
+            />
+            {adminError && <p className="text-red-400 text-sm mb-2">{adminError}</p>}
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setShowAdminLogin(false)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg">Cancel</button>
+              <button onClick={handleAdminLogin} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg">Log In</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* De-warp editor — shown immediately after an image is selected */}
       {pendingImage && (
         <WallEditor
@@ -1213,10 +1293,13 @@ export default function ClimbingRouteDesigner() {
       )}
       <div className="max-w-4xl mx-auto">
         {!image && (
-          <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-white mb-2">🧗 Spray</h1>
+          <div className="flex items-center justify-between mb-6">
+            <div className="w-8 shrink-0" />
+            <h1 className="text-3xl font-bold text-white mb-2 text-center flex-1">🧗 Spray</h1>
+            <div className="shrink-0">{adminControl}</div>
           </div>
         )}
+
 
         {showWallLibrary && (
           <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
@@ -1238,9 +1321,15 @@ export default function ClimbingRouteDesigner() {
                             <h3 className="text-white font-semibold">{wall.name}</h3>
                             <p className="text-slate-300 text-sm">{getRoutesForWall(wall.id).length} routes</p>
                           </div>
-                          <div className="text-red-400 hover:bg-red-900 p-3 cursor-pointer rounded" onClick={() => requestDeleteWall(wall.id)}>
+                          <button
+                            type="button"
+                            disabled={!isAdmin}
+                            onClick={() => requestDeleteWall(wall.id)}
+                            title={isAdmin ? 'Delete wall' : 'Admin login required to delete'}
+                            className={`p-3 rounded ${isAdmin ? 'text-red-400 hover:bg-red-900 cursor-pointer' : 'text-slate-500 opacity-40 cursor-not-allowed'}`}
+                          >
                             <Trash2 size={20} />
-                          </div>
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1301,9 +1390,15 @@ export default function ClimbingRouteDesigner() {
                                       <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => handleLoadRoute(route.id)}>
                                         <h3 className="text-white font-semibold truncate">{route.name}</h3>
                                       </div>
-                                      <div className="text-red-400 hover:bg-red-900 p-2 cursor-pointer rounded" onClick={() => requestDeleteRoute(route.id)}>
+                                      <button
+                                        type="button"
+                                        disabled={!isAdmin}
+                                        onClick={() => requestDeleteRoute(route.id)}
+                                        title={isAdmin ? 'Delete route' : 'Admin login required to delete'}
+                                        className={`p-2 rounded ${isAdmin ? 'text-red-400 hover:bg-red-900 cursor-pointer' : 'text-slate-500 opacity-40 cursor-not-allowed'}`}
+                                      >
                                         <Trash2 size={18} />
-                                      </div>
+                                      </button>
                                     </div>
                                   </div>
                                 ))}
@@ -1411,7 +1506,7 @@ export default function ClimbingRouteDesigner() {
                       </>
                     )}
                   </div>
-                  <div className="w-8 shrink-0" />
+                  <div className="shrink-0">{adminControl}</div>
                 </div>
 
                 <button onClick={handleReset} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 mb-4">
@@ -1466,7 +1561,7 @@ export default function ClimbingRouteDesigner() {
                   <div className="flex-1 text-center">
                     <h2 className="text-xl font-bold text-white">{currentWallName || 'Unnamed Wall'}</h2>
                   </div>
-                  <div className="w-8 shrink-0" />
+                  <div className="shrink-0">{adminControl}</div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
@@ -1532,7 +1627,7 @@ export default function ClimbingRouteDesigner() {
                       </>
                     )}
                   </div>
-                  <div className="w-8 shrink-0" />
+                  <div className="shrink-0">{adminControl}</div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 mb-4">
@@ -1699,7 +1794,12 @@ export default function ClimbingRouteDesigner() {
                           <h3 className="text-white font-semibold">{ascent.climberName}</h3>
                           <p className="text-slate-300 text-sm">{new Date(ascent.date.replace(/-/g, '/')).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
-                        <button onClick={() => requestDeleteAscent(ascent.id, ascent.climberName)} className="text-red-400 hover:bg-red-900 p-2 rounded">
+                        <button
+                          disabled={!isAdmin}
+                          onClick={() => requestDeleteAscent(ascent.id, ascent.climberName)}
+                          title={isAdmin ? 'Delete ascent' : 'Admin login required to delete'}
+                          className={`p-2 rounded ${isAdmin ? 'text-red-400 hover:bg-red-900' : 'text-slate-500 opacity-40 cursor-not-allowed'}`}
+                        >
                           <Trash2 size={18} />
                         </button>
                       </div>
