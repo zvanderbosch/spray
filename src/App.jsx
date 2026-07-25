@@ -28,6 +28,17 @@ function getSavedState() {
   }
 }
 
+// Formats an ISO date string as e.g. "2026 Jul 25" (YYYY MMM DD)
+function formatRouteCreatedDate(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = d.toLocaleDateString('en-US', { month: 'short' });
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year} ${month} ${day}`;
+}
+
 const storage = {
   async get(key) {
     const [type, id] = key.split(':');
@@ -1576,7 +1587,16 @@ export default function ClimbingRouteDesigner() {
                 <div className="bg-slate-800 rounded-lg p-4 mb-4">
                   <h3 className="text-white text-xl font-bold mb-3">{routeName || 'Untitled'}{routeGrade ? ` - ${routeGrade}` : ''}</h3>
                   <div className="space-y-2 text-slate-300">
-                    {setterName && <div><span className="font-semibold">Setter:</span> {setterName}</div>}
+                    {setterName && (
+                      <div>
+                        <span className="font-semibold">Setter:</span> {setterName}
+                        {(() => {
+                          const createdAt = routes.find(r => r.id === currentRouteId)?.createdAt;
+                          const formatted = formatRouteCreatedDate(createdAt);
+                          return formatted ? <span className="text-slate-400"> ({formatted})</span> : null;
+                        })()}
+                      </div>
+                    )}
                     <div><span className="font-semibold">Foot Rule:</span> {footRule === 'marked' ? 'Marked Holds' : 'Any Feet'}</div>
                     {routeNotes && <div><span className="font-semibold">Notes:</span> {routeNotes}</div>}
                     <div className="flex items-center justify-between">
