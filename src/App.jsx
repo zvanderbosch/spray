@@ -4,10 +4,6 @@ import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Cam
 // API-based storage
 const API_URL = '/api';
 
-// Shared PIN that unlocks delete actions app-wide. Change this to whatever
-// code you want to share with trusted climbers/setters at your gym.
-const ADMIN_PIN = '2477';
-
 // Admin login persists only for the current browser tab session (clears on tab close),
 // similar in spirit to sessionStorage-based UI state below.
 function getSavedAdminState() {
@@ -15,6 +11,16 @@ function getSavedAdminState() {
     return sessionStorage.getItem('sprayAppIsAdmin') === 'true';
   } catch {
     return false;
+  }
+}
+
+// The actual PIN, kept alongside the isAdmin flag so it can be sent to the
+// server as proof of admin status on delete requests.
+function getSavedAdminPin() {
+  try {
+    return sessionStorage.getItem('sprayAppAdminPin') || '';
+  } catch {
+    return '';
   }
 }
 
@@ -80,7 +86,14 @@ const storage = {
   async delete(key) {
     const [type, id] = key.split(':');
     try {
-      await fetch(`${API_URL}/${type}s/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_URL}/${type}s/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-pin': getSavedAdminPin() }
+      });
+      if (!response.ok) {
+        console.error('Delete rejected:', response.status);
+        return null;
+      }
       return { key, deleted: true };
     } catch (error) {
       console.error('Delete error:', error);
@@ -623,6 +636,7 @@ export default function ClimbingRouteDesigner() {
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminPinInput, setAdminPinInput] = useState('');
   const [adminError, setAdminError] = useState('');
+  const [deleteError, setDeleteError] = useState('');
   const imageRef = useRef(null);
   const viewImageRef = useRef(null);
   const editCanvasRef = useRef(null);
@@ -1129,45 +1143,77 @@ export default function ClimbingRouteDesigner() {
     });
   };
 
-  const handleAdminLogin = () => {
-    if (adminPinInput === ADMIN_PIN) {
-      setIsAdmin(true);
-      try { sessionStorage.setItem('sprayAppIsAdmin', 'true'); } catch { }
-      setShowAdminLogin(false);
-      setAdminPinInput('');
-      setAdminError('');
-    } else {
-      setAdminError('Incorrect PIN');
-      setAdminPinInput('');
+  const handleAdminLogin = async () => {
+    const enteredPin = adminPinInput;
+    setAdminPinInput('');
+    setAdminError('');
+    try {
+      const response = await fetch(`${API_URL}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: enteredPin })
+      });
+      if (response.ok) {
+        setIsAdmin(true);
+        try {
+          sessionStorage.setItem('sprayAppIsAdmin', 'true');
+          sessionStorage.setItem('sprayAppAdminPin', enteredPin);
+        } catch { }
+        setShowAdminLogin(false);
+        setAdminError('');
+      } else if (response.status === 429) {
+        setAdminError('Too many failed attempts. Try again in a few minutes.');
+      } else {
+        setAdminError('Incorrect PIN');
+      }
+    } catch (error) {
+      console.error('Admin login error:', error);
+      setAdminError('Could not reach the server. Try again.');
     }
   };
 
   const handleAdminLogout = () => {
     setIsAdmin(false);
-    try { sessionStorage.removeItem('sprayAppIsAdmin'); } catch { }
+    try {
+      sessionStorage.removeItem('sprayAppIsAdmin');
+      sessionStorage.removeItem('sprayAppAdminPin');
+    } catch { }
   };
 
   const confirmDeleteAction = async () => {
     if (!confirmDelete) return;
+    setDeleteError('');
     try {
       if (confirmDelete.type === 'wall') {
-        await window.storage.delete(`wall:${confirmDelete.id}`);
+        const result = await window.storage.delete(`wall:${confirmDelete.id}`);
+        if (!result) {
+          setDeleteError('Delete was rejected. Your admin session may have expired — try logging in again.');
+          return;
+        }
         const wallRoutes = routes.filter(r => r.wallId === confirmDelete.id);
         for (const route of wallRoutes) await window.storage.delete(`route:${route.id}`);
         setWalls(walls.filter(w => w.id !== confirmDelete.id));
         setRoutes(routes.filter(r => r.wallId !== confirmDelete.id));
         if (currentWallId === confirmDelete.id) handleReset();
       } else if (confirmDelete.type === 'route') {
-        await window.storage.delete(`route:${confirmDelete.id}`);
+        const result = await window.storage.delete(`route:${confirmDelete.id}`);
+        if (!result) {
+          setDeleteError('Delete was rejected. Your admin session may have expired — try logging in again.');
+          return;
+        }
         setRoutes(routes.filter(r => r.id !== confirmDelete.id));
         if (currentRouteId === confirmDelete.id) handleClear();
       } else if (confirmDelete.type === 'ascent') {
-        await handleDeleteAscent(confirmDelete.id);
+        const ok = await handleDeleteAscent(confirmDelete.id);
+        if (!ok) {
+          setDeleteError('Delete was rejected. Your admin session may have expired — try logging in again.');
+          return;
+        }
       }
       setConfirmDelete(null);
     } catch (error) {
       console.error('Error:', error);
-      setConfirmDelete(null);
+      setDeleteError('Something went wrong while deleting. Please try again.');
     }
   };
 
@@ -1207,22 +1253,28 @@ export default function ClimbingRouteDesigner() {
 
   const handleDeleteAscent = async (ascentId) => {
     const updatedAscents = ascents.filter(a => a.id !== ascentId);
-    setAscents(updatedAscents);
 
-    // Save to database
-    if (currentRouteId) {
-      try {
-        const result = await window.storage.get(`route:${currentRouteId}`);
-        if (result && result.value) {
-          const routeData = JSON.parse(result.value);
-          routeData.ascents = updatedAscents;
-          routeData.updatedAt = new Date().toISOString();
-          await window.storage.set(`route:${currentRouteId}`, JSON.stringify(routeData));
-          setRoutes(routes.map(r => r.id === currentRouteId ? { ...r, ascents: updatedAscents } : r));
-        }
-      } catch (error) {
-        console.error('Error deleting ascent:', error);
+    if (!currentRouteId) {
+      // No persisted route to sync against (shouldn't normally happen) — just update locally.
+      setAscents(updatedAscents);
+      return true;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/routes/${currentRouteId}/ascents/${ascentId}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-pin': getSavedAdminPin() }
+      });
+      if (!response.ok) {
+        console.error('Delete ascent rejected:', response.status);
+        return false;
       }
+      setAscents(updatedAscents);
+      setRoutes(routes.map(r => r.id === currentRouteId ? { ...r, ascents: updatedAscents } : r));
+      return true;
+    } catch (error) {
+      console.error('Error deleting ascent:', error);
+      return false;
     }
   };
 
@@ -1841,9 +1893,10 @@ export default function ClimbingRouteDesigner() {
         <div className="fixed inset-0 bg-black bg-opacity-75 z-[100] flex items-center justify-center p-4">
           <div className="bg-slate-800 rounded-lg max-w-md w-full p-6">
             <h3 className="text-xl font-bold text-white mb-4">Confirm Delete</h3>
-            <p className="text-slate-300 mb-6">{confirmDelete.message}</p>
+            <p className="text-slate-300 mb-4">{confirmDelete.message}</p>
+            {deleteError && <p className="text-red-400 text-sm mb-4">{deleteError}</p>}
             <div className="flex gap-3">
-              <button onClick={() => setConfirmDelete(null)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg">Cancel</button>
+              <button onClick={() => { setConfirmDelete(null); setDeleteError(''); }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg">Cancel</button>
               <button onClick={confirmDeleteAction} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg">Delete</button>
             </div>
           </div>

@@ -11,6 +11,12 @@ const app = express();
 const dbPath = path.join(__dirname, 'db.json');
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
 
+// Shared PIN required to log in as admin and perform deletes. Set this via
+// an environment variable in production; the fallback below is just for
+// local dev. This value now lives ONLY on the server — the browser never
+// receives or stores the correct PIN, just a pass/fail answer.
+const ADMIN_PIN = process.env.ADMIN_PIN || '2477';
+
 // Create uploads directory if it doesn't exist
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -59,6 +65,73 @@ function saveImageFile(wallId, base64Data) {
         return base64Data; // Fallback to base64
     }
 }
+
+// Require the shared admin PIN (sent as the x-admin-pin header) for any
+// request that reaches this middleware. Used to gate deletes.
+function requireAdminPin(req, res, next) {
+    const ip = req.ip;
+
+    if (isLockedOut(ip)) {
+        return res.status(429).json({ error: 'Too many failed attempts. Try again in a few minutes.' });
+    }
+
+    const providedPin = req.headers['x-admin-pin'];
+
+    if (!providedPin || providedPin !== ADMIN_PIN) {
+        recordFailedAttempt(ip);
+        return res.status(401).json({ error: 'Admin PIN required or incorrect' });
+    }
+
+    recordSuccess(ip);
+    next();
+}
+
+// --- Simple in-memory brute-force protection for the PIN ---
+// Note: this resets on server restart and is per-instance only (fine for a
+// single small server; wouldn't scale correctly behind multiple instances).
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const failedAttemptsByIp = new Map(); // ip -> { count, lockedUntil }
+
+function isLockedOut(ip) {
+    const entry = failedAttemptsByIp.get(ip);
+    return !!(entry && entry.lockedUntil && Date.now() < entry.lockedUntil);
+}
+
+function recordFailedAttempt(ip) {
+    const entry = failedAttemptsByIp.get(ip) || { count: 0, lockedUntil: 0 };
+    entry.count += 1;
+    if (entry.count >= MAX_FAILED_ATTEMPTS) {
+        entry.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+        entry.count = 0;
+    }
+    failedAttemptsByIp.set(ip, entry);
+}
+
+function recordSuccess(ip) {
+    failedAttemptsByIp.delete(ip);
+}
+
+// Admin login — the ONLY place the PIN is compared. The browser never holds
+// a copy of the correct PIN; it just sends whatever the user typed here and
+// gets a yes/no answer back.
+app.post('/admin/login', (req, res) => {
+    const ip = req.ip;
+
+    if (isLockedOut(ip)) {
+        return res.status(429).json({ error: 'Too many failed attempts. Try again in a few minutes.' });
+    }
+
+    const { pin } = req.body || {};
+
+    if (pin && pin === ADMIN_PIN) {
+        recordSuccess(ip);
+        return res.json({ ok: true });
+    }
+
+    recordFailedAttempt(ip);
+    return res.status(401).json({ error: 'Incorrect PIN' });
+});
 
 // Get all items
 app.get('/:type', (req, res) => {
@@ -132,8 +205,33 @@ app.put('/:type/:id', (req, res) => {
     }
 });
 
-// Delete item
-app.delete('/:type/:id', (req, res) => {
+// Delete a single ascent from a route — requires the shared admin PIN.
+// Ascents are stored embedded in the route's `ascents` array rather than as
+// their own top-level collection, so this needs its own endpoint instead of
+// going through the generic /:type/:id delete route below.
+app.delete('/routes/:routeId/ascents/:ascentId', requireAdminPin, (req, res) => {
+    const db = readDB();
+    const { routeId, ascentId } = req.params;
+
+    const route = db.routes?.find(r => r.id === routeId);
+    if (!route) {
+        return res.status(404).json({ error: 'Route not found' });
+    }
+
+    const originalLength = (route.ascents || []).length;
+    route.ascents = (route.ascents || []).filter(a => a.id !== ascentId);
+
+    if (route.ascents.length === originalLength) {
+        return res.status(404).json({ error: 'Ascent not found' });
+    }
+
+    route.updatedAt = new Date().toISOString();
+    writeDB(db);
+    res.json({ deleted: true });
+});
+
+// Delete item — requires the shared admin PIN
+app.delete('/:type/:id', requireAdminPin, (req, res) => {
     const db = readDB();
     const type = req.params.type;
     const id = req.params.id;
