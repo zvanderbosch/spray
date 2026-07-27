@@ -1325,7 +1325,6 @@ export default function ClimbingRouteDesigner() {
         <div className="fixed inset-0 bg-black bg-opacity-75 z-[120] flex items-center justify-center p-4">
           <div className="bg-slate-800 rounded-lg max-w-sm w-full p-6">
             <h3 className="text-xl font-bold text-white mb-4">Admin Login</h3>
-            <p className="text-slate-300 text-sm mb-4">Enter the shared PIN to enable delete actions.</p>
             <input
               type="password"
               inputMode="numeric"
