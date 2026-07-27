@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Camera, Info, BarChart2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Upload, Undo, Save, FolderOpen, Trash2, ArrowLeft, Edit2, Check, X, Camera, Info, BarChart2, ChevronDown, ChevronUp, Settings } from 'lucide-react';
 
 // API-based storage
 const API_URL = '/api';
@@ -1252,16 +1252,18 @@ export default function ClimbingRouteDesigner() {
   const adminControl = isAdmin ? (
     <button
       onClick={handleAdminLogout}
-      className="bg-green-700 hover:bg-green-800 text-white text-xs font-semibold py-1.5 px-2.5 rounded-lg flex items-center gap-1 whitespace-nowrap"
+      title="Admin mode on — click to log out"
+      className="bg-green-700 hover:bg-green-800 text-white p-2 rounded-lg flex items-center justify-center"
     >
-      <Check size={12} /> Admin
+      <Settings size={16} />
     </button>
   ) : (
     <button
       onClick={() => { setShowAdminLogin(true); setAdminError(''); setAdminPinInput(''); }}
-      className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold py-1.5 px-2.5 rounded-lg whitespace-nowrap"
+      title="Admin login"
+      className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-2 rounded-lg flex items-center justify-center"
     >
-      Admin
+      <Settings size={16} />
     </button>
   );
 
@@ -1332,15 +1334,16 @@ export default function ClimbingRouteDesigner() {
                             <h3 className="text-white font-semibold">{wall.name}</h3>
                             <p className="text-slate-300 text-sm">{getRoutesForWall(wall.id).length} routes</p>
                           </div>
-                          <button
-                            type="button"
-                            disabled={!isAdmin}
-                            onClick={() => requestDeleteWall(wall.id)}
-                            title={isAdmin ? 'Delete wall' : 'Admin login required to delete'}
-                            className={`p-3 rounded ${isAdmin ? 'text-red-400 hover:bg-red-900 cursor-pointer' : 'text-slate-500 opacity-40 cursor-not-allowed'}`}
-                          >
-                            <Trash2 size={20} />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => requestDeleteWall(wall.id)}
+                              title="Delete wall"
+                              className="p-3 rounded text-red-400 hover:bg-red-900 cursor-pointer"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1401,15 +1404,16 @@ export default function ClimbingRouteDesigner() {
                                       <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => handleLoadRoute(route.id)}>
                                         <h3 className="text-white font-semibold truncate">{route.name}</h3>
                                       </div>
-                                      <button
-                                        type="button"
-                                        disabled={!isAdmin}
-                                        onClick={() => requestDeleteRoute(route.id)}
-                                        title={isAdmin ? 'Delete route' : 'Admin login required to delete'}
-                                        className={`p-2 rounded ${isAdmin ? 'text-red-400 hover:bg-red-900 cursor-pointer' : 'text-slate-500 opacity-40 cursor-not-allowed'}`}
-                                      >
-                                        <Trash2 size={18} />
-                                      </button>
+                                      {isAdmin && (
+                                        <button
+                                          type="button"
+                                          onClick={() => requestDeleteRoute(route.id)}
+                                          title="Delete route"
+                                          className="p-2 rounded text-red-400 hover:bg-red-900 cursor-pointer"
+                                        >
+                                          <Trash2 size={18} />
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 ))}
@@ -1814,14 +1818,15 @@ export default function ClimbingRouteDesigner() {
                           <h3 className="text-white font-semibold">{ascent.climberName}</h3>
                           <p className="text-slate-300 text-sm">{new Date(ascent.date.replace(/-/g, '/')).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
-                        <button
-                          disabled={!isAdmin}
-                          onClick={() => requestDeleteAscent(ascent.id, ascent.climberName)}
-                          title={isAdmin ? 'Delete ascent' : 'Admin login required to delete'}
-                          className={`p-2 rounded ${isAdmin ? 'text-red-400 hover:bg-red-900' : 'text-slate-500 opacity-40 cursor-not-allowed'}`}
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => requestDeleteAscent(ascent.id, ascent.climberName)}
+                            title="Delete ascent"
+                            className="p-2 rounded text-red-400 hover:bg-red-900"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
