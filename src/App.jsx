@@ -966,6 +966,7 @@ export default function ClimbingRouteDesigner() {
     setSelectedType('start');
     setCurrentRouteId(null);
     setSaveWarning([]);
+    setAscents([]);
   };
 
   const handleUndo = () => {
@@ -1017,7 +1018,7 @@ export default function ClimbingRouteDesigner() {
       footRule,
       holds,
       wallId: currentWallId,
-      ascents: ascents || [],
+      ascents: currentRouteId ? (ascents || []) : [],
       createdAt: currentRouteId ? routes.find(r => r.id === currentRouteId)?.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -1583,7 +1584,7 @@ export default function ClimbingRouteDesigner() {
                   <button onClick={() => setShowRouteLibrary(true)} className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center">
                     Choose a Route
                   </button>
-                  <button onClick={() => { setMode('create'); setHolds([]); setRouteName(''); setSetterName(''); setRouteGrade(''); setRouteNotes(''); setFootRule('marked'); setCurrentRouteId(null); setSelectedType('start'); }} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center">
+                  <button onClick={() => { setMode('create'); setHolds([]); setRouteName(''); setSetterName(''); setRouteGrade(''); setRouteNotes(''); setFootRule('marked'); setCurrentRouteId(null); setSelectedType('start'); setAscents([]); }} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center">
                     Create/Edit a Route
                   </button>
                   <button onClick={() => setShowWallStats(true)} className="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-4 px-4 rounded-lg flex items-center justify-center">
