@@ -1793,7 +1793,7 @@ export default function ClimbingRouteDesigner() {
         {!image && (
           <div className="flex items-center justify-between mb-6">
             <div className="w-8 shrink-0" />
-            <h1 className="text-3xl font-bold text-white mb-2 text-center flex-1">🧗 Spray</h1>
+            <h1 className="text-3xl font-bold text-white mb-2 text-center flex-1">Spray</h1>
             <div className="shrink-0">{adminControl}</div>
           </div>
         )}
@@ -1975,7 +1975,7 @@ export default function ClimbingRouteDesigner() {
             {mode === 'choose' ? (
               <>
                 <div className="flex items-center mb-4">
-                  <span className="text-2xl w-8 shrink-0">🧗</span>
+                  <div className="w-8 shrink-0" />
                   <div className="flex-1 flex items-center justify-center gap-2">
                     {editingWallName ? (
                       <>
@@ -2065,7 +2065,7 @@ export default function ClimbingRouteDesigner() {
             ) : mode === 'view' ? (
               <>
                 <div className="flex items-center mb-4">
-                  <span className="text-2xl w-8 shrink-0">🧗</span>
+                  <div className="w-8 shrink-0" />
                   <div className="flex-1 text-center">
                     <h2 className="text-xl font-bold text-white">{currentWallName || 'Unnamed Wall'}</h2>
                   </div>
@@ -2129,7 +2129,7 @@ export default function ClimbingRouteDesigner() {
             ) : (
               <>
                 <div className="flex items-center mb-4">
-                  <span className="text-2xl w-8 shrink-0">🧗</span>
+                  <div className="w-8 shrink-0" />
                   <div className="flex-1 flex items-center justify-center gap-2">
                     {editingWallName ? (
                       <>
