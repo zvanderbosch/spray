@@ -365,6 +365,414 @@ function WallEditor({ src, onConfirm, onCancel }) {
 }
 // ──────────────────────────────────────────────────────────────────────────────
 
+// ─── Wall alignment helpers ───────────────────────────────────────────────────
+// Everything here works in normalised 0–1 coordinates (fraction of image width /
+// height), so photos with different resolutions or aspect ratios still line up.
+
+// Least-squares homography (row-major, 9 numbers, H[8] = 1) mapping src → dst.
+// Needs ≥ 4 point pairs; extra pairs average out tapping error.
+function solveHomography(pairs) {
+  if (pairs.length < 4) return null;
+  const n = 8;
+  // Augmented normal equations: (AᵀA | Aᵀb)
+  const M = Array.from({ length: n }, () => new Array(n + 1).fill(0));
+  const addRow = (row, rhs) => {
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) M[i][j] += row[i] * row[j];
+      M[i][n] += row[i] * rhs;
+    }
+  };
+  pairs.forEach(({ src, dst }) => {
+    addRow([src.x, src.y, 1, 0, 0, 0, -src.x * dst.x, -src.y * dst.x], dst.x);
+    addRow([0, 0, 0, src.x, src.y, 1, -src.x * dst.y, -src.y * dst.y], dst.y);
+  });
+  for (let col = 0; col < n; col++) {
+    let maxRow = col;
+    for (let r = col + 1; r < n; r++)
+      if (Math.abs(M[r][col]) > Math.abs(M[maxRow][col])) maxRow = r;
+    if (Math.abs(M[maxRow][col]) < 1e-9) return null; // degenerate (e.g. points all in a line)
+    [M[col], M[maxRow]] = [M[maxRow], M[col]];
+    for (let r = col + 1; r < n; r++) {
+      const f = M[r][col] / M[col][col];
+      for (let k = col; k <= n; k++) M[r][k] -= f * M[col][k];
+    }
+  }
+  const h = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    let s = M[i][n];
+    for (let j = i + 1; j < n; j++) s -= M[i][j] * h[j];
+    h[i] = s / M[i][i];
+  }
+  return [...h, 1];
+}
+
+function applyHomography(H, x, y) {
+  const w = H[6] * x + H[7] * y + H[8];
+  return {
+    x: (H[0] * x + H[1] * y + H[2]) / w,
+    y: (H[3] * x + H[4] * y + H[5]) / w,
+    w,
+  };
+}
+
+// CSS matrix3d() string that warps an element sized (boxW × boxH) px, whose
+// content represents the unit square of the source photo, onto the same-sized
+// target box. Used for the live overlay preview.
+function homographyToCssMatrix(H, boxW, boxH) {
+  const a = H[0], b = (H[1] * boxW) / boxH, c = H[2] * boxW;
+  const d = (H[3] * boxH) / boxW, e = H[4], f = H[5] * boxH;
+  const g = H[6] / boxW, h = H[7] / boxH, i = H[8];
+  return `matrix3d(${a},${d},0,${g}, ${b},${e},0,${h}, 0,0,1,0, ${c},${f},0,${i})`;
+}
+
+// Maps a route's holds (stored as 0–100 %) through H. Out-of-bounds holds are
+// clamped and flagged.
+function mapHoldsThroughHomography(holds, H) {
+  let clipped = false;
+  const mapped = (holds || []).map(hold => {
+    const p = applyHomography(H, hold.x / 100, hold.y / 100);
+    let x = p.x * 100, y = p.y * 100;
+    if (x < 0 || x > 100 || y < 0 || y > 100) clipped = true;
+    x = Math.min(100, Math.max(0, x));
+    y = Math.min(100, Math.max(0, y));
+    return { ...hold, x, y };
+  });
+  return { holds: mapped, clipped };
+}
+
+const PAIR_COLORS = ['#22c55e', '#3b82f6', '#f97316', '#a855f7', '#eab308', '#ec4899', '#14b8a6', '#ef4444', '#84cc16', '#06b6d4'];
+const PREVIEW_HOLD_COLORS = { start: '#86efac', hand: '#38bdf8', foot: '#d8b4fe', finish: '#ef4444' };
+
+// ─── Align Walls: match holds between an old and a new photo ─────────────────
+function AlignWalls({ sourceImage, sourceName, targetImage, targetName, onConfirm, onCancel }) {
+  const srcRef = useRef(null);
+  const dstRef = useRef(null);
+  const refs = { src: srcRef, dst: dstRef };
+  // Each pair: { src: {x,y} | null, dst: {x,y} | null }, coords are 0–1 fractions
+  const [pairs, setPairs] = useState([]);
+  const [drag, setDrag] = useState(null); // { side, i }
+  const [overlayOpacity, setOverlayOpacity] = useState(0.5);
+  const [dstSize, setDstSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = dstRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) =>
+      setDstSize({ w: entry.contentRect.width, h: entry.contentRect.height }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const getPt = (side, e) => {
+    const rect = refs[side].current.getBoundingClientRect();
+    return {
+      x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
+      y: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+    };
+  };
+
+  const addPoint = (side, pt) => setPairs(prev => {
+    const other = side === 'src' ? 'dst' : 'src';
+    // A pair is waiting for a point on this side → complete it
+    const waitingIdx = prev.findIndex(p => p[side] === null);
+    if (waitingIdx !== -1) return prev.map((p, i) => i === waitingIdx ? { ...p, [side]: pt } : p);
+    // Last pair is half-done on this same side → just move that pending point
+    const last = prev[prev.length - 1];
+    if (last && last[side] && !last[other]) return prev.map((p, i) => i === prev.length - 1 ? { ...p, [side]: pt } : p);
+    // Otherwise start a new pair
+    return [...prev, { src: null, dst: null, [side]: pt }];
+  });
+  const movePoint = (side, i, pt) => setPairs(prev => prev.map((p, idx) => idx === i ? { ...p, [side]: pt } : p));
+  const removePair = (i) => setPairs(prev => prev.filter((_, idx) => idx !== i));
+
+  const complete = pairs.map((p, i) => ({ ...p, i })).filter(p => p.src && p.dst);
+  const rawH = complete.length >= 4 ? solveHomography(complete) : null;
+  const H = rawH && [[0, 0], [1, 0], [1, 1], [0, 1]].every(([x, y]) => {
+    const p = applyHomography(rawH, x, y);
+    return Number.isFinite(p.x) && Number.isFinite(p.y) && p.w > 1e-6 && Math.abs(p.x) < 5 && Math.abs(p.y) < 5;
+  }) ? rawH : null;
+
+  // Per-pair error, as % of the photo size
+  const errors = {};
+  let rms = 0;
+  if (H) {
+    complete.forEach(p => {
+      const m = applyHomography(H, p.src.x, p.src.y);
+      errors[p.i] = Math.hypot(m.x - p.dst.x, m.y - p.dst.y) * 100;
+    });
+    rms = Math.sqrt(complete.reduce((s, p) => s + errors[p.i] ** 2, 0) / complete.length);
+  }
+
+  const waiting = pairs.find(p => !(p.src && p.dst));
+  const hint = waiting
+    ? (waiting.src ? 'Now tap that same hold on the NEW photo.' : 'Now tap that same hold on the OLD photo.')
+    : complete.length < 4
+      ? `Tap a hold that hasn't moved on either photo, then the same hold on the other. (${complete.length}/4 minimum)`
+      : H ? 'Add more pairs (especially near the edges) or drag points to fine-tune.' : "These points can't be solved — spread them out so they aren't in a line.";
+
+  const renderMarkers = (side) => pairs.map((p, i) => p[side] && (
+    <div
+      key={i}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); setDrag({ side, i }); }}
+      onPointerMove={(e) => { if (drag && drag.side === side && drag.i === i) movePoint(side, i, getPt(side, e)); }}
+      onPointerUp={() => setDrag(null)}
+      onPointerCancel={() => setDrag(null)}
+      className="absolute rounded-full"
+      style={{
+        left: `${p[side].x * 100}%`, top: `${p[side].y * 100}%`,
+        width: 30, height: 30, transform: 'translate(-50%, -50%)',
+        border: `3px solid ${PAIR_COLORS[i % PAIR_COLORS.length]}`,
+        background: 'rgba(0,0,0,0.15)', boxShadow: '0 0 0 1px #fff', cursor: 'grab',
+        touchAction: 'none', zIndex: 10,
+      }}
+    >
+      <span className="absolute text-white font-bold" style={{
+        left: '100%', top: -8, fontSize: 11, padding: '0 4px', borderRadius: 8,
+        background: PAIR_COLORS[i % PAIR_COLORS.length],
+      }}>{i + 1}</span>
+    </div>
+  ));
+
+  const panel = (side, img, label) => (
+    <div>
+      <p className="text-white text-sm font-semibold mb-1">{label}</p>
+      <div
+        ref={refs[side]}
+        className="relative overflow-hidden rounded-lg select-none"
+        onClick={(e) => addPoint(side, getPt(side, e))}
+        style={{ cursor: 'crosshair' }}
+      >
+        <img src={img} alt={label} className="w-full h-auto block" draggable={false} />
+        {side === 'dst' && H && dstSize.w > 0 && (
+          <img
+            src={sourceImage}
+            alt=""
+            draggable={false}
+            style={{
+              position: 'absolute', left: 0, top: 0,
+              width: dstSize.w, height: dstSize.h,
+              transformOrigin: '0 0',
+              transform: homographyToCssMatrix(H, dstSize.w, dstSize.h),
+              opacity: overlayOpacity, pointerEvents: 'none',
+            }}
+          />
+        )}
+        {renderMarkers(side)}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-95 z-[160] overflow-y-auto p-4">
+      <div className="max-w-5xl mx-auto">
+        <h2 className="text-white text-xl font-bold text-center mb-1">Align Old Wall to New Photo</h2>
+        <p className="text-slate-300 text-sm text-center mb-1">{hint}</p>
+        <p className="text-slate-500 text-xs text-center mb-3">
+          Use 6–10 holds or bolts that haven't moved, spread across the whole wall. Drag a ring to fine-tune it.
+        </p>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          {panel('src', sourceImage, `OLD: ${sourceName}`)}
+          {panel('dst', targetImage, `NEW: ${targetName}`)}
+        </div>
+
+        {H && (
+          <div className="mt-3 bg-slate-800 rounded-lg p-3">
+            <label className="text-slate-300 text-sm flex items-center gap-3">
+              Old photo overlay
+              <input type="range" min="0" max="1" step="0.05" value={overlayOpacity}
+                onChange={(e) => setOverlayOpacity(parseFloat(e.target.value))} className="flex-1" />
+            </label>
+            <p className="text-slate-400 text-xs mt-1">
+              The old photo is warped onto the new one. If holds don't line up, add pairs or nudge the rings.
+              Average error: {rms.toFixed(2)}% of the photo width.
+            </p>
+          </div>
+        )}
+
+        {pairs.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {pairs.map((p, i) => {
+              const err = errors[i];
+              const bad = err !== undefined && err > 1.5;
+              return (
+                <div key={i} className="flex items-center gap-1 bg-slate-800 rounded-full pl-1 pr-2 py-1 text-xs text-slate-300">
+                  <span className="inline-flex items-center justify-center rounded-full text-white font-bold"
+                    style={{ width: 20, height: 20, background: PAIR_COLORS[i % PAIR_COLORS.length] }}>{i + 1}</span>
+                  {p.src && p.dst
+                    ? <span className={bad ? 'text-red-400 font-semibold' : ''}>{err !== undefined ? `${err.toFixed(1)}%` : 'ok'}</span>
+                    : <span className="text-slate-500">half</span>}
+                  <button onClick={() => removePair(i)} className="text-slate-400 hover:text-white ml-1" title="Remove this pair">×</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-3 mt-4 pb-6">
+          <button onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-lg">Cancel</button>
+          <button onClick={() => setPairs(p => p.slice(0, -1))} disabled={pairs.length === 0}
+            className="bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white font-semibold py-3 rounded-lg">Undo</button>
+          <button onClick={() => onConfirm(H)} disabled={!H}
+            className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-semibold py-3 rounded-lg">Continue ✓</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Import Routes flow: pick old wall → align → choose routes → copy ────────
+function ImportRoutesFlow({ walls, routes, targetWallId, targetWallName, targetImage, onImport, onClose }) {
+  const [step, setStep] = useState('pick'); // 'pick' | 'align' | 'select'
+  const [sourceId, setSourceId] = useState(null);
+  const [H, setH] = useState(null);
+  const [selected, setSelected] = useState(new Set());
+  const [previewId, setPreviewId] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const gradeNum = (g) => parseInt(String(g || 'V0').replace('V', ''), 10) || 0;
+  const otherWalls = walls.filter(w => w.id !== targetWallId);
+  const source = walls.find(w => w.id === sourceId);
+  const sourceRoutes = routes
+    .filter(r => r.wallId === sourceId)
+    .sort((a, b) => gradeNum(a.grade) - gradeNum(b.grade) || (a.name || '').localeCompare(b.name || ''));
+  // Routes already copied onto this wall earlier — don't offer to duplicate them
+  const alreadyCopied = new Set(routes.filter(r => r.wallId === targetWallId && r.copiedFrom).map(r => r.copiedFrom));
+
+  const toggle = (id) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const handleCopy = async () => {
+    if (!H || selected.size === 0) return;
+    setBusy(true);
+    const base = Date.now();
+    const newRoutes = sourceRoutes.filter(r => selected.has(r.id)).map((r, i) => ({
+      ...r,
+      id: `${base + i}`,
+      wallId: targetWallId,
+      holds: mapHoldsThroughHomography(r.holds, H).holds,
+      ascents: [],            // ascents stay with the original route
+      copiedFrom: r.id,       // link back to the original (also prevents duplicate copies)
+      updatedAt: new Date().toISOString(),
+    }));
+    await onImport(newRoutes);
+    setBusy(false);
+    onClose();
+  };
+
+  if (step === 'align' && source) {
+    return (
+      <AlignWalls
+        sourceImage={source.image}
+        sourceName={source.name}
+        targetImage={targetImage}
+        targetName={targetWallName}
+        onCancel={() => setStep('pick')}
+        onConfirm={(Hm) => {
+          setH(Hm);
+          setSelected(new Set(sourceRoutes.filter(r => !alreadyCopied.has(r.id)).map(r => r.id)));
+          setPreviewId(null);
+          setStep('select');
+        }}
+      />
+    );
+  }
+
+  const previewRoute = previewId ? sourceRoutes.find(r => r.id === previewId) : null;
+  const previewHolds = previewRoute && H ? mapHoldsThroughHomography(previewRoute.holds, H).holds : [];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 z-[150] flex items-center justify-center p-4">
+      <div className="bg-slate-800 rounded-lg max-w-2xl w-full flex flex-col" style={{ maxHeight: '90vh' }}>
+        <div className="p-5 border-b border-slate-700 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-white">
+            {step === 'pick' ? `Import Routes into "${targetWallName}"` : 'Choose Routes to Copy'}
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl">×</button>
+        </div>
+
+        {step === 'pick' && (
+          <div className="p-5 overflow-y-auto space-y-3">
+            <p className="text-slate-300 text-sm">
+              Pick the older wall photo to copy routes from. You'll match a few holds between the two photos so the
+              routes land on the right holds. The original routes aren't changed.
+            </p>
+            {otherWalls.length === 0 && <p className="text-slate-400 text-center py-6">There are no other walls.</p>}
+            {otherWalls.map(w => {
+              const count = routes.filter(r => r.wallId === w.id).length;
+              return (
+                <button key={w.id} disabled={count === 0}
+                  onClick={() => { setSourceId(w.id); setStep('align'); }}
+                  className="w-full flex gap-4 items-center bg-slate-700 hover:bg-slate-600 disabled:opacity-40 rounded-lg p-3 text-left">
+                  <img src={w.image} alt="" className="w-20 h-20 object-cover rounded" />
+                  <div>
+                    <h3 className="text-white font-semibold">{w.name}</h3>
+                    <p className="text-slate-300 text-sm">{count} routes</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {step === 'select' && (
+          <>
+            <div className="p-5 overflow-y-auto">
+              <p className="text-slate-300 text-sm mb-2">
+                Tap a route name to preview where it will land on the new photo.
+              </p>
+              <div className="relative rounded-lg overflow-hidden mb-3">
+                <img src={targetImage} alt="New wall" className="w-full h-auto block" />
+                {previewHolds.map((h, i) => (
+                  <div key={i} className="absolute rounded-full" style={{
+                    left: `${h.x}%`, top: `${h.y}%`, width: 20, height: 20,
+                    transform: 'translate(-50%, -50%)',
+                    border: `3px solid ${PREVIEW_HOLD_COLORS[h.type] || '#fff'}`,
+                  }} />
+                ))}
+              </div>
+              <div className="flex gap-3 mb-2 text-sm">
+                <button className="text-blue-400 hover:underline"
+                  onClick={() => setSelected(new Set(sourceRoutes.filter(r => !alreadyCopied.has(r.id)).map(r => r.id)))}>Select all</button>
+                <button className="text-blue-400 hover:underline" onClick={() => setSelected(new Set())}>Select none</button>
+                <button className="text-blue-400 hover:underline ml-auto" onClick={() => setStep('align')}>← Re-align</button>
+              </div>
+              <div className="space-y-1">
+                {sourceRoutes.map(r => {
+                  const copied = alreadyCopied.has(r.id);
+                  const clipped = H ? mapHoldsThroughHomography(r.holds, H).clipped : false;
+                  return (
+                    <div key={r.id} className={`flex items-center gap-3 rounded px-2 py-2 ${previewId === r.id ? 'bg-slate-600' : 'bg-slate-700'}`}>
+                      <input type="checkbox" disabled={copied} checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
+                      <button className="flex-1 text-left text-white text-sm" onClick={() => setPreviewId(r.id)}>
+                        {r.name} <span className="text-slate-400">· {r.grade}</span>
+                        {copied && <span className="ml-2 text-xs text-green-400">already copied</span>}
+                        {clipped && <span className="ml-2 text-xs text-yellow-400" title="Some holds fall outside the new photo">⚠ off-photo holds</span>}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-5 border-t border-slate-700 grid grid-cols-2 gap-3">
+              <button onClick={onClose} className="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-lg">Cancel</button>
+              <button onClick={handleCopy} disabled={busy || selected.size === 0}
+                className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-semibold py-3 rounded-lg">
+                {busy ? 'Copying…' : `Copy ${selected.size} route${selected.size === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 // ─── Ascent Name Input with manual dropdown ───────────────────────────────────
 function AscentNameInput({ value, onChange, knownNames }) {
   const [open, setOpen] = useState(false);
@@ -628,6 +1036,7 @@ export default function ClimbingRouteDesigner() {
   const [expandedGrades, setExpandedGrades] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showWallStats, setShowWallStats] = useState(false);
+  const [showImportRoutes, setShowImportRoutes] = useState(false);
   const [mode, setMode] = useState(saved?.mode ?? 'choose'); // 'choose', 'view', 'create'
   const [showCreateWall, setShowCreateWall] = useState(false);
   const [createWallName, setCreateWallName] = useState('');
@@ -1280,6 +1689,18 @@ export default function ClimbingRouteDesigner() {
   };
 
   const getHoldCount = (type) => holds.filter(h => h.type === type).length;
+  // Persist routes produced by the "Import Routes" flow (already remapped to this wall)
+  const handleImportRoutes = async (newRoutes) => {
+    const savedRoutes = [];
+    for (const r of newRoutes) {
+      const { id, ...data } = r;
+      const result = await window.storage.set(`route:${id}`, JSON.stringify(data));
+      if (result) savedRoutes.push(r);
+    }
+    setRoutes(prev => [...savedRoutes, ...prev]);
+    return savedRoutes.length;
+  };
+
   const getRoutesForWall = (wallId) => routes.filter(r => r.wallId === wallId);
 
   // On close: collapse everything. On open: show only the active route's grade (or nothing).
@@ -1354,6 +1775,18 @@ export default function ClimbingRouteDesigner() {
             // "Skip" — use the raw image as-is
             commitPendingImage(pendingImage);
           }}
+        />
+      )}
+      {/* Import routes from another wall (align photos, then copy) */}
+      {showImportRoutes && currentWallId && image && (
+        <ImportRoutesFlow
+          walls={walls}
+          routes={routes}
+          targetWallId={currentWallId}
+          targetWallName={currentWallName}
+          targetImage={image}
+          onImport={handleImportRoutes}
+          onClose={() => setShowImportRoutes(false)}
         />
       )}
       <div className="max-w-4xl mx-auto">
@@ -1620,6 +2053,14 @@ export default function ClimbingRouteDesigner() {
                 >
                   <Camera size={18} /> Update Wall Image
                 </button>
+                {walls.some(w => w.id !== currentWallId && getRoutesForWall(w.id).length > 0) && (
+                  <button
+                    onClick={() => setShowImportRoutes(true)}
+                    className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    Import Routes From Another Wall
+                  </button>
+                )}
               </>
             ) : mode === 'view' ? (
               <>
