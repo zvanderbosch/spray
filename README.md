@@ -16,9 +16,16 @@ Spray works in a very simple way:
 
 That's it! No user profiles, just a simple app to maintain a library of routes for your climbing wall.
 
-It might be hard to use for walls with very dense hold layouts since the markers may cover multiple holds, but hey, it gets the job done for me, and maybe it will for you too! Below is a screenshot from my iPhone 14 showing one of the routes I created and saved:
+It might be hard to use for walls with very dense hold layouts since the markers may cover multiple holds, but hey, it gets the job done for me, and maybe it will for you too! Below is a screenshot from an iPhone 17 Pro showing one of the saved routes:
 
 <img src="data/app_image.jpeg" alt="Spray Screenshot (iPhone14)" width="350"/>
+
+If at some point you add new holds to your wall and want to copy your existing routes to an updated wall in the app, you can do this using the following steps:
+
+1) Create a new wall with your updated image
+2) On this wall's home screen, select "Import Routes From Another Wall"
+3) Select at least **4** holds, ideally more, that are common between the old and new images to establish the transformation that maps hold positions on the old image to hold positions on the new image.
+4) Click "Continue" and then choose which routes to copy over from the old wall to the new wall.
 
 ## Disclaimer
 
