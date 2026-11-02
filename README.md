@@ -94,4 +94,4 @@ Here are the steps to follow to use this import feature:
 
 Below is a screenshot of the hold selection and image alignment window. A slider is provided that, after selecting atleast 4 holds, will overlay the transformed old image on top of the new image so users can verify the quality of the hold alignment.
 
-<img src="data/alignment_image.jpeg" alt="Image Alignment Screenshot (iPhone17 pro)" width="350"/>
+<img src="data/alignment_image.jpg" alt="Image Alignment Screenshot (iPhone17 pro)" width="350"/>
