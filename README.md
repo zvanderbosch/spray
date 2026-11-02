@@ -82,16 +82,18 @@ If you want to allow people to access your app publicly from any device or inter
 
 ## Importing Routes From an Old Wall to a New Wall
 
-If at some point you add new holds to your wall, or move some holds around, you may want to update the wall's picture so these holds are included in the app. However, it will likely be very difficult to take a new picture that matches the perspective of the original image. To aid in this process, Spray has a feature built in that allows users to create a new wall and then import routes from an old wal, using an image alignment method that allows for an accurate transformation of hold marker positions from old to new images.
+If at some point you add new holds to your wall, or move some holds around, you may want to update the wall's picture so these holds are included in the app. However, it will likely be very difficult to take a new picture that matches the perspective of the original image, causing hold markers from the old wall's routes to appear misplaced on the new wall. 
 
-Here are the steps to follow to use this import feature:
+To aid in transferring routes from an old to new wall image, Spray has a built-in feature that allows users to create a new wall and use an image alignment tool to define an accurate transformation of hold marker positions from old to new images.
+
+Here are the steps to follow to use the hold alignment and route import feature:
 
 1) Create a new wall with your updated image
 2) On this wall's home screen, select "Import Routes From Another Wall"
 3) Select at least **4** holds, ideally more, that are common between the old and new images to establish the transformation that maps hold positions on the old image to hold positions on the new image.
-4) Click "Continue" then choose which routes to copy over from the old wall to the new wall.
-5) Click "Copy" to complete the copy process.
+4) Click "Continue" once you're happy with the alignment, then choose which routes to copy over from the old wall to the new wall.
+5) Click "Copy" to complete the process. If copying a lot a routes over, this way take a few seconds.
 
-Below is a screenshot of the hold selection and image alignment window. A slider is provided that, after selecting atleast 4 holds, will overlay the transformed old image on top of the new image so users can verify the quality of the hold alignment.
+Below is a screenshot of the hold selection and image alignment window. A slider is provided that, after selecting atleast 4 holds, will overlay the transformed old image on top of the new image so users can visually verify the quality of the hold alignment.
 
 <img src="data/alignment_image.jpg" alt="Image Alignment Screenshot (iPhone17 pro)" width="350"/>
