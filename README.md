@@ -1,8 +1,4 @@
-<p align="center">
-  <img src="data/app_logo.png" width="400" height="400">
-</p>
-
-#
+# Spray
 
 A React web-based app allowing users to build and save climbing routes for their own custom climbing walls.
 
