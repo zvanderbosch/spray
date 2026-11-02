@@ -9,6 +9,7 @@ Spray works in a very simple way:
 3) Save the route, along with route name, setter name, V-grade difficulty, foot rule, and any special notes.
 4) View the route again at any time!
 5) Record ascents if you'd like, logging just your name and ascent date.
+6) View basic wall and climber stats, such as the wall's grade distribution, and a summary of logged ascents for each climber.
 
 That's it! No user profiles, just a simple app to maintain a library of routes for your climbing wall.
 
@@ -52,6 +53,20 @@ Create a **db.json** file in the **spray** directory with the following contents
 
 This file will serve as the database storing your library of climbing walls and associated routes.
 
+Now you will need to copy and rename the provided .env.example file to a file named .env:
+
+```bash
+cp .env.example .env
+```
+
+This file stores two variables, `ADMIN_PIN` and `ALLOWED_HOSTS`. The `ADMIN_PIN` variable is required for the app to run, and sets a numerical PIN value used to enable delete actions. Once you've created the `.env' file, open it and set your PIN value to something like:
+
+```bash
+ADMIN_PIN=1234
+```
+
+The `ALLOWED_HOSTS` variable is optional and can be left empty, but this is used to set the allowed domain names over which this app can be served publicly. See the section [Making the App Publicly Available](#making-the-app-publicly-available) below for more details.
+
 ## Serving the App
 
 With the above steps complete, simply run the following from your **spray** directory:
@@ -63,11 +78,10 @@ npm run dev:all
 Now, any device that is connected to the same network as the device that's running the app will be able to access the app on a browser at the **Network** address printed out on the terminal, such as:
 
 ```
-  VITE v7.3.1  ready in 121 ms
-
-  ➜  Local:   http://localhost:3000/
-  ➜  Network: http://YOUR_COMPUTER_IP:3000/
-  ➜  press h + enter to show help
+[web]   VITE v7.3.7  ready in 389 ms
+[web] 
+[web]   ➜  Local:   http://localhost:3000/
+[web]   ➜  Network: http://YOUR_COMPUTER_IP:3000/
 ```
 
 To shut down the app and database server, just type `ctrl+c` in the terminal running the app.
