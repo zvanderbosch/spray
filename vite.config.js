@@ -12,8 +12,6 @@ export default defineConfig(({ mode }) => {
     .map((h) => h.trim())
     .filter(Boolean)
 
-  console.log("Allowed Hosts: ", allowedHosts)
-
   return {
     plugins: [react(), tailwindcss()],
     server: {

@@ -15,7 +15,13 @@ const uploadsDir = path.join(__dirname, 'public', 'uploads');
 // an environment variable in production; the fallback below is just for
 // local dev. This value now lives ONLY on the server — the browser never
 // receives or stores the correct PIN, just a pass/fail answer.
-const ADMIN_PIN = process.env.ADMIN_PIN || '2477';
+const RED = '\x1b[1;31m';
+const RESET = '\x1b[0m';
+const ADMIN_PIN = process.env.ADMIN_PIN;
+if (!ADMIN_PIN) {
+    console.error(`${RED}ERROR: ADMIN_PIN is missing or empty. Set it in your .env file.${RESET}`);
+    process.exit(1);
+}
 
 // Create uploads directory if it doesn't exist
 if (!fs.existsSync(uploadsDir)) {
