@@ -22,9 +22,6 @@ public/uploads/wall*
 *.local
 .env
 
-# Images
-data/spray_qrcode.png
-
 # App traffic policy
 oauth.yml
 
