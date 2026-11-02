@@ -451,7 +451,7 @@ function AlignWalls({ sourceImage, sourceName, targetImage, targetName, onConfir
   // Each pair: { src: {x,y} | null, dst: {x,y} | null }, coords are 0–1 fractions
   const [pairs, setPairs] = useState([]);
   const [drag, setDrag] = useState(null); // { side, i }
-  const [overlayOpacity, setOverlayOpacity] = useState(0.5);
+  const [overlayOpacity, setOverlayOpacity] = useState(0.0);
   const [dstSize, setDstSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
