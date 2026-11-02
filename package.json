@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "node server.js",
-    "dev:all": "npm run server & npm run dev",
+    "server": "node --env-file=.env server.js",
+    "dev:all": "concurrently --kill-others-on-fail -n api,web \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -21,6 +21,7 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^10.0.6",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "globals": "^16.5.0",
