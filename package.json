@@ -7,7 +7,6 @@
     "dev": "vite",
     "server": "node --env-file=.env server.js",
     "dev:all": "concurrently --kill-others-on-fail -n api,web \"npm run server\" \"npm run dev\"",
-    "dev:alt": "concurrently --kill-others-on-fail -n api,web \"./node_modules/.bin/vite\" \"node --env-file=.env server.js\"",
     "build": "vite build",
     "preview": "vite preview"
   },
